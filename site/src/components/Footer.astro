@@ -1,5 +1,4 @@
 ---
-import { sponsors } from '../data/sponsors';
 import { data, getGroupSlug } from '../data/rules';
 import { SITE_NAME, SITE_URL, GITHUB_URL, GITHUB_CONTRIBUTING_URL, GITHUB_LICENSE_URL, GITHUB_MIT_LICENSE_URL, AUTHOR_GITHUB_URL, TWITTER_HANDLE, LICENSE_CC_BY_NAME, LICENSE_MIT_NAME, SIBLING_AWESOME_LISTS } from '../data/site';
 
@@ -69,17 +68,6 @@ const featuredGroups = data.groups.filter((g) => featuredGroupSlugs.includes(get
         </ul>
       </div>
 
-      <!-- Column 4: Sponsors -->
-      <div>
-        <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">Sponsors</h3>
-        <div class="space-y-4">
-          {sponsors.map((s) => (
-            <a href={s.url} target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity" data-sponsor-name={s.name} data-sponsor-slot="footer">
-              <img src={`${base}${s.logo}`} alt={`${s.name} — ${s.description}`} class="h-6" />
-            </a>
-          ))}
-        </div>
-      </div>
     </div>
 
     <div class="mt-10 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
@@ -107,7 +95,3 @@ const featuredGroups = data.groups.filter((g) => featuredGroupSlugs.includes(get
   </div>
 </footer>
 
-<script>
-  import { initSponsorClickTracking } from '../scripts/sponsor';
-  initSponsorClickTracking();
-</script>
