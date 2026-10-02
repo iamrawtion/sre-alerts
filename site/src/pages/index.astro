@@ -52,7 +52,7 @@ const faqItems = [
     name: 'What exporters and services are covered?',
     acceptedAnswer: {
       '@type': 'Answer',
-      text: `Awesome Prometheus Alerts covers ${totalServices} services across ${data.groups.length} categories: ${data.groups.map((g) => `${g.name} (${g.services.map((s) => s.name).join(', ')})`).join('; ')}.`,
+      text: `SRE Alerts & Runbooks covers ${totalServices} services across ${data.groups.length} categories: ${data.groups.map((g) => `${g.name} (${g.services.map((s) => s.name).join(', ')})`).join('; ')}.`,
     },
   },
   {
@@ -183,40 +183,49 @@ const jsonLd = {
 ---
 
 <BaseLayout
-  title="Awesome Prometheus Alerts | Copy-pasteable Prometheus alerting rules"
-  description={`Collection of ${totalRules} copy-pasteable Prometheus alerting rules for ${totalServices} services — covering databases, Kubernetes, cloud providers, message brokers, and more.`}
+  title="SRE Alerts & Runbooks | Prometheus alerting rules, configs, and runbooks"
+  description={`${totalRules} production-ready Prometheus alerting rules for ${totalServices} services, plus monitoring configs, integrations, and per-service runbooks.`}
   jsonLd={jsonLd}
 >
   <!-- Hero -->
   <section class="bg-gradient-to-b from-slate-50 dark:from-slate-900/50 to-white dark:to-slate-950 border-b border-slate-200 dark:border-slate-800">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-      <div class="flex justify-center mb-6">
-        <img
-          src={`${base}/images/prometheus-logo.png`}
-          alt="Prometheus"
-          class="h-16 w-auto"
-          width="64"
-          height="64"
-        />
-      </div>
       <h1 class="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-4">
-        Awesome Prometheus Alert Rules
+        SRE Alerts &amp; Runbooks
       </h1>
       <p class="text-lg text-slate-500 dark:text-slate-400 mb-8 max-w-2xl mx-auto">
-        {totalRules} copy-pasteable Prometheus alerting rules.
-        Find, copy, and deploy alerts in seconds.
+        {totalRules} production-ready Prometheus alerting rules for {totalServices} services — plus monitoring platform configs, third-party integrations, and per-service runbooks with step-by-step troubleshooting guides.
       </p>
 
       <!-- CTA buttons -->
+      <p class="text-xs font-medium tracking-wider uppercase text-slate-400 dark:text-slate-500 mb-3">Browse all</p>
       <div class="flex flex-wrap justify-center gap-3">
         <a
           href={`${base}/rules/`}
           class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand hover:bg-brand/90 text-white font-medium rounded-lg transition-colors"
         >
-          Browse all rules
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
+          Rules
+        </a>
+        <a
+          href={`${base}/configs/`}
+          class="inline-flex items-center gap-2 px-5 py-2.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-medium rounded-lg hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Configs
+        </a>
+        <a
+          href={`${base}/runbooks/`}
+          class="inline-flex items-center gap-2 px-5 py-2.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-medium rounded-lg hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          Runbooks
         </a>
         <a
           href="https://github.com/iamrawtion/sre-alerts"
