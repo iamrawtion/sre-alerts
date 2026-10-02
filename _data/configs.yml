@@ -1,0 +1,283 @@
+platforms:
+  - name: "Prometheus"
+    slug: "prometheus"
+    description: "Scrape configs, recording rules, remote write, and federation."
+    configs:
+      - slug: "scrape-config"
+        title: "Scrape Config"
+        description: "Basic Prometheus scrape configuration for discovering and scraping targets."
+        content: |
+          global:
+            scrape_interval: 15s
+            evaluation_interval: 15s
+            external_labels:
+              cluster: 'prod'
+              region: 'us-east-1'
+
+          scrape_configs:
+            # Prometheus itself
+            - job_name: 'prometheus'
+              static_configs:
+                - targets: ['localhost:9090']
+
+            # Node exporter — host metrics
+            - job_name: 'node'
+              static_configs:
+                - targets:
+                    - 'node-01:9100'
+                    - 'node-02:9100'
+
+            # Kubernetes pods via service discovery
+            - job_name: 'kubernetes-pods'
+              kubernetes_sd_configs:
+                - role: pod
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                  action: keep
+                  regex: true
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                  action: replace
+                  target_label: __metrics_path__
+                  regex: (.+)
+                - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                  action: replace
+                  regex: ([^:]+)(?::\d+)?;(\d+)
+                  replacement: $1:$2
+                  target_label: __address__
+
+      - slug: "recording-rules"
+        title: "Recording Rules"
+        description: "Pre-computed expressions stored as new time series to speed up dashboards and alerts."
+        content: |
+          groups:
+            - name: node_recording_rules
+              interval: 1m
+              rules:
+                # CPU usage averaged across all cores
+                - record: instance:node_cpu_utilisation:rate5m
+                  expr: |
+                    1 - avg without(cpu, mode) (
+                      rate(node_cpu_seconds_total{mode="idle"}[5m])
+                    )
+
+                # Memory utilisation
+                - record: instance:node_memory_utilisation:ratio
+                  expr: |
+                    1 - (
+                      node_memory_MemAvailable_bytes /
+                      node_memory_MemTotal_bytes
+                    )
+
+                # Disk I/O utilisation
+                - record: instance:node_disk_utilisation:rate5m
+                  expr: |
+                    max without(device) (
+                      rate(node_disk_io_time_seconds_total[5m])
+                    )
+
+                # Network receive bytes per second
+                - record: instance:node_network_receive_bytes:rate5m
+                  expr: |
+                    sum without(device) (
+                      rate(node_network_receive_bytes_total{device!~"lo|veth.+|docker.+|flannel.+|cali.+|cbr.+"}[5m])
+                    )
+
+      - slug: "alertmanager-config"
+        title: "AlertManager Config"
+        description: "AlertManager routing, grouping, and receiver configuration."
+        content: |
+          global:
+            resolve_timeout: 5m
+            smtp_smarthost: 'smtp.example.com:587'
+            smtp_from: 'alertmanager@example.com'
+            smtp_auth_username: 'alertmanager@example.com'
+            smtp_auth_password: 'changeme'
+
+          templates:
+            - '/etc/alertmanager/templates/*.tmpl'
+
+          route:
+            group_by: ['alertname', 'cluster', 'service']
+            group_wait: 30s
+            group_interval: 5m
+            repeat_interval: 4h
+            receiver: 'slack-default'
+
+            routes:
+              # Critical alerts → PagerDuty
+              - match:
+                  severity: critical
+                receiver: pagerduty
+                continue: true
+
+              # Warnings → Slack
+              - match:
+                  severity: warning
+                receiver: slack-default
+
+          receivers:
+            - name: 'slack-default'
+              slack_configs:
+                - api_url: 'https://hooks.slack.com/services/CHANGE/ME'
+                  channel: '#alerts'
+                  send_resolved: true
+                  title: '{{ template "slack.title" . }}'
+                  text: '{{ template "slack.text" . }}'
+
+            - name: 'pagerduty'
+              pagerduty_configs:
+                - service_key: 'YOUR_PAGERDUTY_SERVICE_KEY'
+                  send_resolved: true
+
+          inhibit_rules:
+            # Suppress warning if critical is already firing for the same alertname+instance
+            - source_match:
+                severity: 'critical'
+              target_match:
+                severity: 'warning'
+              equal: ['alertname', 'instance']
+
+      - slug: "remote-write"
+        title: "Remote Write"
+        description: "Push metrics to a remote storage backend such as Thanos, Cortex, or Mimir."
+        content: |
+          remote_write:
+            # Thanos Receive
+            - url: "http://thanos-receive:19291/api/v1/receive"
+              queue_config:
+                capacity: 2500
+                max_shards: 200
+                min_shards: 1
+                max_samples_per_send: 500
+                batch_send_deadline: 5s
+                min_backoff: 30ms
+                max_backoff: 100ms
+              write_relabel_configs:
+                # Drop high-cardinality debug metrics before shipping
+                - source_labels: [__name__]
+                  regex: 'go_.*'
+                  action: drop
+
+            # Grafana Mimir (with basic auth)
+            - url: "http://mimir:8080/api/v1/push"
+              basic_auth:
+                username: "prometheus"
+                password: "changeme"
+              headers:
+                X-Scope-OrgID: "my-tenant"
+
+  - name: "Thanos"
+    slug: "thanos"
+    description: "Sidecar, querier, ruler, compactor, and store gateway."
+    configs:
+      - slug: "sidecar"
+        title: "Sidecar"
+        description: "Thanos Sidecar runs alongside Prometheus and uploads TSDB blocks to object storage."
+        content: |
+          # Run alongside Prometheus with access to its data directory.
+          # The sidecar uploads completed TSDB blocks to object storage and
+          # exposes a gRPC StoreAPI for the Querier.
+
+          thanos sidecar \
+            --tsdb.path=/prometheus/data \
+            --prometheus.url=http://localhost:9090 \
+            --grpc-address=0.0.0.0:10901 \
+            --http-address=0.0.0.0:10902 \
+            --objstore.config-file=/etc/thanos/bucket.yml
+
+          # bucket.yml — GCS example
+          # type: GCS
+          # config:
+          #   bucket: "my-thanos-bucket"
+
+          # bucket.yml — S3 example
+          # type: S3
+          # config:
+          #   bucket: "my-thanos-bucket"
+          #   endpoint: "s3.us-east-1.amazonaws.com"
+          #   region: "us-east-1"
+
+      - slug: "querier"
+        title: "Querier"
+        description: "Thanos Querier implements the Prometheus HTTP API and deduplicates data from multiple stores."
+        content: |
+          thanos query \
+            --http-address=0.0.0.0:9090 \
+            --grpc-address=0.0.0.0:10901 \
+            --query.replica-label=replica \
+            --store=thanos-sidecar-1:10901 \
+            --store=thanos-sidecar-2:10901 \
+            --store=thanos-store-gateway:10901 \
+            --store=thanos-ruler:10901
+
+          # Kubernetes service discovery for sidecars:
+          # --store.sd-files=/etc/thanos/stores.yml
+          # --store.sd-interval=30s
+
+      - slug: "store-gateway"
+        title: "Store Gateway"
+        description: "Serves metrics from object storage for long-term querying."
+        content: |
+          thanos store \
+            --data-dir=/var/thanos/store \
+            --objstore.config-file=/etc/thanos/bucket.yml \
+            --grpc-address=0.0.0.0:10901 \
+            --http-address=0.0.0.0:10902 \
+            --chunk-pool-size=2GB
+
+      - slug: "compactor"
+        title: "Compactor"
+        description: "Applies compaction and downsampling to blocks in object storage."
+        content: |
+          thanos compact \
+            --data-dir=/var/thanos/compact \
+            --objstore.config-file=/etc/thanos/bucket.yml \
+            --http-address=0.0.0.0:10902 \
+            --retention.resolution-raw=30d \
+            --retention.resolution-5m=90d \
+            --retention.resolution-1h=1y \
+            --wait \
+            --wait-interval=30m
+
+  - name: "VictoriaMetrics"
+    slug: "victoriametrics"
+    description: "Single-node and cluster configs, vmagent scraping, and vmrule alerting."
+    configs:
+      - slug: "single-node"
+        title: "Single Node"
+        description: "VictoriaMetrics single-node deployment — drop-in Prometheus replacement."
+        content: |
+          # VictoriaMetrics single-node startup flags
+
+          /usr/bin/victoria-metrics \
+            -storageDataPath=/var/lib/victoria-metrics \
+            -retentionPeriod=12 \
+            -httpListenAddr=:8428 \
+            -selfScrapeInterval=10s \
+            -search.maxUniqueTimeseries=300000 \
+            -search.maxQueryDuration=30s
+
+          # Remote write from Prometheus → VictoriaMetrics:
+          # remote_write:
+          #   - url: http://victoria-metrics:8428/api/v1/write
+
+      - slug: "vmagent"
+        title: "VMAgent"
+        description: "Lightweight scraping agent that writes to VictoriaMetrics or any remote_write endpoint."
+        content: |
+          # vmagent scrape config — same format as Prometheus scrape_configs
+
+          global:
+            scrape_interval: 15s
+
+          scrape_configs:
+            - job_name: 'node'
+              static_configs:
+                - targets: ['node-01:9100', 'node-02:9100']
+
+          # vmagent startup flags:
+          # /usr/bin/vmagent \
+          #   -promscrape.config=/etc/vmagent/scrape.yml \
+          #   -remoteWrite.url=http://victoria-metrics:8428/api/v1/write \
+          #   -remoteWrite.tmpDataPath=/var/lib/vmagent/tmp \
+          #   -httpListenAddr=:8429

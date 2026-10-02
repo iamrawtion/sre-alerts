@@ -1,0 +1,135 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import { data, getAllConfigs } from '../../../data/configs';
+import { SITE_URL, schemaWebSite } from '../../../data/site';
+import type { Platform, Config } from '../../../data/configs';
+
+export function getStaticPaths() {
+  return getAllConfigs().map(({ platform, config }) => ({
+    params: { platform: platform.slug, config: config.slug },
+    props: { platform, config },
+  }));
+}
+
+interface Props {
+  platform: Platform;
+  config: Config;
+}
+
+const { platform, config } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'TechArticle',
+  name: `${platform.name} — ${config.title}`,
+  description: config.description,
+  url: `${SITE_URL}configs/${platform.slug}/${config.slug}/`,
+  isPartOf: schemaWebSite,
+};
+---
+
+<BaseLayout
+  title={`${config.title} — ${platform.name} Config | SRE Alerts & Runbooks`}
+  description={config.description}
+  jsonLd={jsonLd}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Breadcrumbs
+      items={[
+        { label: 'Configs', href: `${base}/configs/` },
+        { label: platform.name, href: `${base}/configs/#${platform.slug}` },
+        { label: config.title },
+      ]}
+      base={base}
+    />
+
+    <!-- Header -->
+    <div class="mt-6 mb-6">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p class="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">{platform.name}</p>
+          <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{config.title}</h1>
+          <p class="text-slate-500 dark:text-slate-400 mt-2">{config.description}</p>
+        </div>
+        <button
+          id="copy-btn"
+          type="button"
+          class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand/50 hover:text-brand dark:hover:text-brand-dark transition-colors"
+        >
+          <svg id="copy-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <svg id="check-icon" class="w-4 h-4 hidden text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span id="copy-label">Copy</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Config content -->
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-950 overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-800">
+        <span class="text-xs font-mono text-slate-400">{config.slug}.yml</span>
+      </div>
+      <pre
+        id="config-content"
+        class="p-5 text-sm font-mono text-slate-200 overflow-x-auto leading-relaxed whitespace-pre"
+      >{config.content.trimEnd()}</pre>
+    </div>
+
+    <!-- Sibling configs in same platform -->
+    {platform.configs.length > 1 && (
+      <div class="mt-8">
+        <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">More {platform.name} configs</h2>
+        <div class="flex flex-wrap gap-2">
+          {platform.configs.filter((c) => c.slug !== config.slug).map((c) => (
+            <a
+              href={`${base}/configs/${platform.slug}/${c.slug}/`}
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand/50 hover:text-brand dark:hover:text-brand-dark transition-colors"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {c.title}
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+</BaseLayout>
+
+<script>
+  const btn = document.getElementById('copy-btn');
+  const content = document.getElementById('config-content');
+  const copyIcon = document.getElementById('copy-icon');
+  const checkIcon = document.getElementById('check-icon');
+  const label = document.getElementById('copy-label');
+
+  btn?.addEventListener('click', async () => {
+    const text = content?.textContent ?? '';
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    copyIcon?.classList.add('hidden');
+    checkIcon?.classList.remove('hidden');
+    if (label) label.textContent = 'Copied!';
+    setTimeout(() => {
+      copyIcon?.classList.remove('hidden');
+      checkIcon?.classList.add('hidden');
+      if (label) label.textContent = 'Copy';
+    }, 2000);
+  });
+</script>

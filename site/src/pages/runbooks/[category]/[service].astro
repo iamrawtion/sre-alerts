@@ -1,0 +1,136 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import { getAllRunbooks } from '../../../data/runbooks';
+import { SITE_URL, schemaWebSite } from '../../../data/site';
+import type { Category, Runbook } from '../../../data/runbooks';
+
+export function getStaticPaths() {
+  return getAllRunbooks().map(({ category, runbook }) => ({
+    params: { category: category.slug, service: runbook.slug },
+    props: { category, runbook },
+  }));
+}
+
+interface Props {
+  category: Category;
+  runbook: Runbook;
+}
+
+const { category, runbook } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const severityColors: Record<string, string> = {
+  critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  info: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+};
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'TechArticle',
+  name: `${runbook.title} Runbook`,
+  description: runbook.description,
+  url: `${SITE_URL}runbooks/${category.slug}/${runbook.slug}/`,
+  isPartOf: schemaWebSite,
+};
+---
+
+<BaseLayout
+  title={`${runbook.title} Runbook — ${category.name} | SRE Alerts & Runbooks`}
+  description={runbook.description}
+  jsonLd={jsonLd}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Breadcrumbs
+      items={[
+        { label: 'Runbooks', href: `${base}/runbooks/` },
+        { label: category.name, href: `${base}/runbooks/#${category.slug}` },
+        { label: runbook.title },
+      ]}
+      base={base}
+    />
+
+    <!-- Header -->
+    <div class="mt-6 mb-8">
+      <p class="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">{category.name}</p>
+      <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{runbook.title}</h1>
+      <p class="text-slate-500 dark:text-slate-400 mt-2">{runbook.description}</p>
+    </div>
+
+    <!-- Alert runbooks -->
+    <div class="space-y-6">
+      {runbook.alerts.map((alert, i) => (
+        <section
+          id={alert.name.toLowerCase().replace(/\s+/g, '-')}
+          class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden"
+        >
+          <!-- Alert header -->
+          <div class="flex items-center justify-between gap-4 px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-mono text-slate-400 dark:text-slate-500 select-none">{i + 1}</span>
+              <h2 class="text-base font-semibold text-slate-900 dark:text-white">{alert.name}</h2>
+            </div>
+            <span class={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 ${severityColors[alert.severity] ?? severityColors.info}`}>
+              {alert.severity}
+            </span>
+          </div>
+
+          <div class="px-6 py-5 space-y-5">
+            <!-- Symptoms -->
+            <div>
+              <h3 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Symptoms</h3>
+              <p class="text-sm text-slate-700 dark:text-slate-300">{alert.symptoms}</p>
+            </div>
+
+            <!-- Causes -->
+            <div>
+              <h3 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Likely causes</h3>
+              <ul class="space-y-1">
+                {alert.causes.map((cause) => (
+                  <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                    <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 flex-shrink-0"></span>
+                    {cause}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <!-- Steps -->
+            <div>
+              <h3 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Resolution steps</h3>
+              <ol class="space-y-2">
+                {alert.steps.map((step, j) => (
+                  <li class="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-brand/10 dark:bg-brand-dark/10 text-brand dark:text-brand-dark text-xs font-semibold flex items-center justify-center mt-0.5">{j + 1}</span>
+                    <span set:html={step.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-xs text-slate-800 dark:text-slate-200">$1</code>')} />
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </section>
+      ))}
+    </div>
+
+    <!-- Sibling runbooks in same category -->
+    {category.runbooks.length > 1 && (
+      <div class="mt-8">
+        <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">More {category.name} runbooks</h2>
+        <div class="flex flex-wrap gap-2">
+          {category.runbooks.filter((r) => r.slug !== runbook.slug).map((r) => (
+            <a
+              href={`${base}/runbooks/${category.slug}/${r.slug}/`}
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand/50 hover:text-brand dark:hover:text-brand-dark transition-colors"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              {r.title}
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+</BaseLayout>
