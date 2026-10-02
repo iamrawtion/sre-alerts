@@ -155,3 +155,30 @@ Each rule ships as a copy-pasteable PromQL snippet with a documented threshold.
 - APC UPS
 - Graph Node
 - LiteLLM
+
+## 🗺️ Roadmap
+
+This repo is actively expanding beyond Prometheus alerting rules into a full SRE reference.
+Here's what's being built out:
+
+### ⚙️ Monitoring Platform Configs
+
+Configuration guides and reference files for deploying and tuning monitoring stacks:
+
+- **Prometheus** — scrape configs, recording rules, federation, remote write
+- **Thanos** — sidecar, querier, ruler, compactor, store gateway setup
+- **VictoriaMetrics** — single-node and cluster configs, vmagent, vmrule
+
+### 🔗 Integrations
+
+Alert routing and integration configs for third-party platforms:
+
+- **NewRelic** — alert policies, NRQL conditions, notification channels
+- **Nagios** — service checks, escalation configs
+- **Zabbix** — templates, triggers, actions
+- **UptimeRobot** — monitor configs, status pages, alert contacts
+
+### 📖 Runbooks & Troubleshooting Guides
+
+Per-service runbooks linked to alerting rules — what the alert means, how to investigate,
+and step-by-step resolution procedures.
