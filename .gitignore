@@ -11,3 +11,5 @@ site/public/pagefind/
 
 # Misc
 .worktrees/
+docs/superpowers/
+.claude/
