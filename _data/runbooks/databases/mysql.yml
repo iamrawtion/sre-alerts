@@ -185,7 +185,7 @@ alerts:
 
     dependencies:
       - "Application connection pools"
-      - "PgBouncer or ProxySQL (if in use)"
+      - "ProxySQL or MySQL Router (if in use)"
 
     escalation:
       guidance: "Escalate if connections exceed 95% or if application errors are visible to end users."
