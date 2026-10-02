@@ -1,0 +1,110 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { SITE_URL, schemaWebSite } from '../../data/site';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const platforms = [
+  {
+    slug: 'prometheus',
+    name: 'Prometheus',
+    icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+    description: 'Scrape configs, recording rules, federation, and remote write.',
+    items: ['scrape-configs.yml', 'recording-rules.yml', 'alertmanager-routes.yml', 'remote-write.yml'],
+    status: 'planned',
+  },
+  {
+    slug: 'thanos',
+    name: 'Thanos',
+    icon: 'M5 12h14M12 5l7 7-7 7',
+    description: 'Sidecar, querier, ruler, compactor, and store gateway setup.',
+    items: ['sidecar.yml', 'querier.yml', 'ruler.yml', 'compactor.yml', 'store-gateway.yml'],
+    status: 'planned',
+  },
+  {
+    slug: 'victoriametrics',
+    name: 'VictoriaMetrics',
+    icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+    description: 'Single-node and cluster configs, vmagent, and vmrule.',
+    items: ['single-node.yml', 'cluster.yml', 'vmagent.yml', 'vmrule.yml'],
+    status: 'planned',
+  },
+];
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Monitoring Platform Configs',
+  description: 'Reference configuration files for Prometheus, Thanos, and VictoriaMetrics.',
+  url: `${SITE_URL}configs/`,
+  isPartOf: schemaWebSite,
+};
+---
+
+<BaseLayout
+  title="Monitoring Platform Configs | SRE Alerts & Runbooks"
+  description="Reference configuration files for Prometheus, Thanos, and VictoriaMetrics — scrape configs, recording rules, remote write, and more."
+  jsonLd={jsonLd}
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Breadcrumbs items={[{ label: 'Configs' }]} base={base} />
+
+    <!-- Header -->
+    <div class="mt-6 mb-8">
+      <h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">Monitoring Platform Configs</h1>
+      <p class="text-slate-500 dark:text-slate-400">
+        Reference configuration files for deploying and tuning your monitoring stack.
+        Copy-pasteable configs with comments explaining non-obvious settings.
+      </p>
+    </div>
+
+    <!-- Coming soon banner -->
+    <div class="mb-8 rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 flex items-start gap-3">
+      <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p class="text-sm text-amber-800 dark:text-amber-200">
+        Config files are being written. Check back soon or <a href="https://github.com/iamrawtion/sre-alerts" class="underline font-medium" target="_blank" rel="noopener noreferrer">contribute on GitHub</a>.
+      </p>
+    </div>
+
+    <!-- Platform cards -->
+    <div class="space-y-6">
+      {platforms.map((platform) => (
+        <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+          <!-- Platform header -->
+          <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={platform.icon} />
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-base font-semibold text-slate-900 dark:text-white">{platform.name}</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{platform.description}</p>
+              </div>
+            </div>
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+              Coming soon
+            </span>
+          </div>
+          <!-- Config file list -->
+          <div class="px-6 py-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+              {platform.items.map((item) => (
+                <div class="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span class="text-xs font-mono">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ))}
+    </div>
+  </div>
+</BaseLayout>

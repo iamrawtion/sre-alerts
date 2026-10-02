@@ -1,0 +1,118 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { SITE_URL, schemaWebSite } from '../../data/site';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const categories = [
+  {
+    slug: 'databases',
+    name: 'Databases',
+    icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4',
+    services: ['MySQL', 'PostgreSQL', 'Redis', 'MongoDB', 'Elasticsearch', 'Cassandra', 'Clickhouse'],
+    count: 0,
+  },
+  {
+    slug: 'infrastructure',
+    name: 'Infrastructure',
+    icon: 'M5 12h14M12 5l7 7-7 7',
+    services: ['Host & Hardware', 'Docker', 'Systemd', 'Blackbox', 'Windows Server'],
+    count: 0,
+  },
+  {
+    slug: 'message-brokers',
+    name: 'Message Brokers',
+    icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+    services: ['Kafka', 'RabbitMQ', 'Pulsar', 'NATS', 'Zookeeper'],
+    count: 0,
+  },
+  {
+    slug: 'orchestrators',
+    name: 'Orchestrators',
+    icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+    services: ['Kubernetes', 'Nomad', 'Consul', 'Etcd', 'OpenStack'],
+    count: 0,
+  },
+  {
+    slug: 'observability',
+    name: 'Observability',
+    icon: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z',
+    services: ['Prometheus', 'Thanos', 'Loki', 'Grafana', 'Tempo', 'Mimir'],
+    count: 0,
+  },
+];
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'SRE Runbooks & Troubleshooting Guides',
+  description: 'Per-service runbooks linked to Prometheus alerting rules — what each alert means, how to investigate, and step-by-step resolution procedures.',
+  url: `${SITE_URL}runbooks/`,
+  isPartOf: schemaWebSite,
+};
+---
+
+<BaseLayout
+  title="Runbooks & Troubleshooting Guides | SRE Alerts & Runbooks"
+  description="Per-service runbooks linked to Prometheus alerting rules — what each alert means, how to investigate, and step-by-step resolution procedures."
+  jsonLd={jsonLd}
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Breadcrumbs items={[{ label: 'Runbooks' }]} base={base} />
+
+    <!-- Header -->
+    <div class="mt-6 mb-8">
+      <h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">Runbooks &amp; Troubleshooting Guides</h1>
+      <p class="text-slate-500 dark:text-slate-400">
+        Per-service runbooks linked to alerting rules — what the alert means, how to investigate it,
+        and step-by-step resolution procedures for each service.
+      </p>
+    </div>
+
+    <!-- Coming soon banner -->
+    <div class="mb-8 rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 flex items-start gap-3">
+      <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p class="text-sm text-amber-800 dark:text-amber-200">
+        Runbooks are being written. Check back soon or <a href="https://github.com/iamrawtion/sre-alerts" class="underline font-medium" target="_blank" rel="noopener noreferrer">contribute on GitHub</a>.
+      </p>
+    </div>
+
+    <!-- Category cards -->
+    <div class="space-y-6">
+      {categories.map((category) => (
+        <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+          <!-- Category header -->
+          <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={category.icon} />
+                </svg>
+              </div>
+              <h2 class="text-base font-semibold text-slate-900 dark:text-white">{category.name}</h2>
+            </div>
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+              Coming soon
+            </span>
+          </div>
+          <!-- Service runbook list -->
+          <div class="px-6 py-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+              {category.services.map((service) => (
+                <div class="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                  <span class="text-xs">{service}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ))}
+    </div>
+  </div>
+</BaseLayout>
