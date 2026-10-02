@@ -182,3 +182,16 @@ Alert routing and integration configs for third-party platforms:
 
 Per-service runbooks linked to alerting rules — what the alert means, how to investigate,
 and step-by-step resolution procedures.
+
+## 📝 License
+
+- Alert rules and content: [Creative Commons CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+- Site source code: [MIT](site/LICENSE)
+
+See [LICENSE](LICENSE) for details.
+
+---
+
+> This repository is a fork of [samber/awesome-prometheus-alerts](https://github.com/samber/awesome-prometheus-alerts)
+> by [Samuel Berthe](https://github.com/samber), used under CC BY 4.0.
+> Extended with additional monitoring configurations, integrations, and runbooks.
