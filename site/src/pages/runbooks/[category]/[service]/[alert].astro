@@ -1,0 +1,459 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../../../components/Breadcrumbs.astro';
+import { getAllAlerts } from '../../../../data/runbooks';
+import { SITE_URL, schemaWebSite } from '../../../../data/site';
+import type { Category, RunbookService, RunbookAlert } from '../../../../data/runbooks';
+
+export function getStaticPaths() {
+  return getAllAlerts().map(({ category, service, alert }) => ({
+    params: { category: category.slug, service: service.slug, alert: alert.slug },
+    props: { category, service, alert },
+  }));
+}
+
+interface Props {
+  category: Category;
+  service: RunbookService;
+  alert: RunbookAlert;
+}
+
+const { category, service, alert } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const severityColors: Record<string, string> = {
+  critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  info: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+};
+
+function renderInlineCode(text: string): string {
+  return text.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-xs text-slate-800 dark:text-slate-200">$1</code>');
+}
+
+function placeholder(label: string): string {
+  return `<span class="italic text-slate-400 dark:text-slate-500">Fill in: ${label}</span>`;
+}
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'TechArticle',
+  name: `${alert.name} — ${service.service} Runbook`,
+  description: alert.overview?.what ?? service.description,
+  url: `${SITE_URL}runbooks/${category.slug}/${service.slug}/${alert.slug}/`,
+  isPartOf: schemaWebSite,
+};
+---
+
+<BaseLayout
+  title={`${alert.name} — ${service.service} Runbook | SRE Alerts & Runbooks`}
+  description={alert.overview?.what ?? service.description}
+  jsonLd={jsonLd}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Breadcrumbs
+      items={[
+        { label: 'Runbooks', href: `${base}/runbooks/` },
+        { label: category.name, href: `${base}/runbooks/` },
+        { label: service.service, href: `${base}/runbooks/${category.slug}/${service.slug}/` },
+        { label: alert.name },
+      ]}
+      base={base}
+    />
+
+    <!-- Page header -->
+    <div class="mt-6 mb-8">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p class="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">{service.service}</p>
+          <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{alert.name}</h1>
+        </div>
+        <span class={`text-sm font-medium px-3 py-1.5 rounded-full flex-shrink-0 ${severityColors[alert.severity] ?? severityColors.info}`}>
+          {alert.severity}
+        </span>
+      </div>
+    </div>
+
+    <div class="space-y-6">
+
+      <!-- 1. Overview -->
+      <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white">Overview</h2>
+        </div>
+        <div class="px-6 py-5 space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">What does this alert mean?</p>
+            <p set:html={alert.overview?.what ? renderInlineCode(alert.overview.what) : placeholder('what this alert means')} />
+          </div>
+          {(alert.overview?.contributing_factors?.length ?? 0) > 0 && (
+            <div>
+              <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contributing factors</p>
+              <ul class="space-y-1">
+                {alert.overview.contributing_factors.map((f) => (
+                  <li class="flex items-start gap-2">
+                    <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 flex-shrink-0"></span>
+                    <span set:html={renderInlineCode(f)} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(alert.overview?.affected_components?.length ?? 0) > 0 && (
+            <div>
+              <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Affected components</p>
+              <ul class="space-y-1">
+                {alert.overview.affected_components.map((c) => (
+                  <li class="flex items-start gap-2">
+                    <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 flex-shrink-0"></span>
+                    {c}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Expected action</p>
+            <p set:html={alert.overview?.expected_action ? renderInlineCode(alert.overview.expected_action) : placeholder('what the on-call engineer should do when this fires')} />
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Services -->
+      <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white">Services</h2>
+        </div>
+        <div class="px-6 py-5">
+          {(alert.services?.length ?? 0) > 0 ? (
+            <ul class="space-y-3">
+              {alert.services.map((svc) => (
+                <li class="text-sm">
+                  <div class="font-medium text-slate-900 dark:text-white">{svc.name}</div>
+                  {svc.overview_url ? (
+                    <a href={svc.overview_url} target="_blank" rel="noopener" class="text-brand dark:text-brand-dark hover:underline text-xs">{svc.overview_url}</a>
+                  ) : (
+                    <span class="text-xs italic text-slate-400 dark:text-slate-500">Fill in: service overview URL</span>
+                  )}
+                  <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Team: {svc.team || <span class="italic">Fill in: owning team name</span>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="text-sm italic text-slate-400 dark:text-slate-500">Fill in: service overview links and owning team</p>
+          )}
+        </div>
+      </section>
+
+      <!-- 3. Metrics -->
+      <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white">Metrics</h2>
+        </div>
+        <div class="px-6 py-5 space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Metric</p>
+            <code class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-xs text-slate-800 dark:text-slate-200">
+              {alert.metrics?.name || <span class="italic font-sans not-italic">Fill in: metric name</span>}
+            </code>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Description &amp; unit</p>
+            <p>{alert.metrics?.description || <span class="italic text-slate-400 dark:text-slate-500">Fill in: what this metric measures</span>}</p>
+            {alert.metrics?.unit && <p class="mt-1 text-slate-500 dark:text-slate-400">Unit: {alert.metrics.unit}</p>}
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Threshold rationale</p>
+            <p>{alert.metrics?.threshold_rationale || <span class="italic text-slate-400 dark:text-slate-500">Fill in: why this threshold value was chosen</span>}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Normal behavior</p>
+            <p>{alert.metrics?.normal_behavior || <span class="italic text-slate-400 dark:text-slate-500">Fill in: what this metric looks like when healthy</span>}</p>
+          </div>
+          {(alert.metrics?.screenshots?.length ?? 0) > 0 && (
+            <div>
+              <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Screenshots</p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {alert.metrics.screenshots.map((s) => (
+                  <figure class="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <img
+                      src={`${base}/images/runbooks/${s.file}`}
+                      alt={s.caption}
+                      class="w-full object-cover"
+                    />
+                    <figcaption class="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800">{s.caption}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <!-- 4. Alert Behavior -->
+      <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white">Alert Behavior</h2>
+        </div>
+        <div class="px-6 py-5 space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Silencing</p>
+            <p>{alert.alert_behavior?.silencing || <span class="italic text-slate-400 dark:text-slate-500">Fill in: when and how to silence this alert</span>}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Expected frequency</p>
+            <p>{alert.alert_behavior?.frequency || <span class="italic text-slate-400 dark:text-slate-500">Fill in: expected firing frequency</span>}</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Severities -->
+      <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white">Severities</h2>
+        </div>
+        <div class="px-6 py-5 space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Severity guidance</p>
+            <p>{alert.severities?.guidance || <span class="italic text-slate-400 dark:text-slate-500">Fill in: how to assign incident severity for this alert</span>}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Impacted users</p>
+            <p>{alert.severities?.impacted_users || <span class="italic text-slate-400 dark:text-slate-500">Fill in: who is affected when this fires</span>}</p>
+          </div>
+          {(alert.severities?.things_to_check?.length ?? 0) > 0 && (
+            <div>
+              <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Things to check to determine severity</p>
+              <ul class="space-y-1">
+                {alert.severities.things_to_check.map((t) => (
+                  <li class="flex items-start gap-2">
+                    <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 flex-shrink-0"></span>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <!-- 6. Verification -->
+      <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white">Verification</h2>
+        </div>
+        <div class="px-6 py-5 space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Prometheus query</p>
+            {alert.verification?.prometheus_query ? (
+              <code class="block px-3 py-2 rounded-lg bg-slate-950 text-slate-200 font-mono text-xs overflow-x-auto">
+                {alert.verification.prometheus_query}
+              </code>
+            ) : (
+              <span class="italic text-slate-400 dark:text-slate-500">Fill in: the PromQL query that triggered this alert</span>
+            )}
+          </div>
+          {(alert.verification?.dashboards?.length ?? 0) > 0 && (
+            <div>
+              <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Dashboards</p>
+              <ul class="space-y-1">
+                {alert.verification.dashboards.map((d) => (
+                  <li>
+                    {d.url ? (
+                      <a href={d.url} target="_blank" rel="noopener" class="text-brand dark:text-brand-dark hover:underline">{d.name}</a>
+                    ) : (
+                      <span class="italic text-slate-400 dark:text-slate-500">{d.name} — Fill in: dashboard URL</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(alert.verification?.log_queries?.length ?? 0) > 0 && (
+            <div>
+              <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Log queries</p>
+              <ul class="space-y-1">
+                {alert.verification.log_queries.map((l) => (
+                  <li>
+                    {l.url ? (
+                      <a href={l.url} target="_blank" rel="noopener" class="text-brand dark:text-brand-dark hover:underline">{l.name}</a>
+                    ) : (
+                      <span class="italic text-slate-400 dark:text-slate-500">{l.name} — Fill in: log query URL</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <!-- 7. Troubleshooting -->
+      <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white">Troubleshooting</h2>
+        </div>
+        <div class="px-6 py-5 space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          {(alert.troubleshooting?.steps?.length ?? 0) > 0 && (
+            <div>
+              <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Steps</p>
+              <ol class="space-y-2">
+                {alert.troubleshooting.steps.map((step, i) => (
+                  <li class="flex items-start gap-3">
+                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-brand/10 dark:bg-brand-dark/10 text-brand dark:text-brand-dark text-xs font-semibold flex items-center justify-center mt-0.5">{i + 1}</span>
+                    <span set:html={renderInlineCode(step)} />
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+          {(alert.troubleshooting?.commands?.length ?? 0) > 0 && (
+            <div>
+              <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Useful commands</p>
+              <div class="rounded-lg bg-slate-950 px-4 py-3 space-y-1">
+                {alert.troubleshooting.commands.map((cmd) => (
+                  <code class="block font-mono text-xs text-slate-200">{cmd}</code>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <!-- 8. Possible Resolutions -->
+      {(alert.resolutions?.length ?? 0) > 0 && (
+        <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">Possible Resolutions</h2>
+          </div>
+          <div class="px-6 py-5">
+            <ul class="space-y-3">
+              {alert.resolutions.map((r) => (
+                <li class="text-sm">
+                  <p class="text-slate-700 dark:text-slate-300">{r.description}</p>
+                  {r.incident_url && (
+                    <a href={r.incident_url} target="_blank" rel="noopener" class="text-xs text-brand dark:text-brand-dark hover:underline mt-0.5 inline-block">View incident →</a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      <!-- 9. Dependencies -->
+      {(alert.dependencies?.length ?? 0) > 0 && (
+        <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">Dependencies</h2>
+          </div>
+          <div class="px-6 py-5">
+            <ul class="space-y-1">
+              {alert.dependencies.map((d) => (
+                <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                  <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 flex-shrink-0"></span>
+                  {d}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      <!-- 10. Escalation -->
+      <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white">Escalation</h2>
+        </div>
+        <div class="px-6 py-5 space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Guidance</p>
+            <p>{alert.escalation?.guidance || <span class="italic text-slate-400 dark:text-slate-500">Fill in: when and how to escalate</span>}</p>
+          </div>
+          {(alert.escalation?.slack_channels?.length ?? 0) > 0 && (
+            <div>
+              <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Slack channels</p>
+              <ul class="space-y-1">
+                {alert.escalation.slack_channels.map((ch) => (
+                  <li>
+                    {ch.url ? (
+                      <a href={ch.url} target="_blank" rel="noopener" class="text-brand dark:text-brand-dark hover:underline">{ch.name}</a>
+                    ) : (
+                      <span class="font-mono text-sm">{ch.name} <span class="italic text-slate-400 dark:text-slate-500 font-sans text-xs">— Fill in: channel URL</span></span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <!-- 11. Definitions -->
+      <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-white">Definitions</h2>
+        </div>
+        <div class="px-6 py-5 space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Alert rule</p>
+            {alert.definitions?.alert_url ? (
+              <a href={alert.definitions.alert_url} target="_blank" rel="noopener" class="text-brand dark:text-brand-dark hover:underline">View alert definition →</a>
+            ) : (
+              <span class="italic text-slate-400 dark:text-slate-500">Fill in: link to the alert rule in _data/rules.yml on GitHub</span>
+            )}
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Tuning notes</p>
+            <p>{alert.definitions?.tuning_notes || <span class="italic text-slate-400 dark:text-slate-500">Fill in: advice on how to tune this alert</span>}</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 12. Related Links -->
+      {((alert.related?.alerts?.length ?? 0) > 0 || (alert.related?.docs?.length ?? 0) > 0) && (
+        <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">Related Links</h2>
+          </div>
+          <div class="px-6 py-5 space-y-4 text-sm">
+            {(alert.related?.alerts?.length ?? 0) > 0 && (
+              <div>
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Related alerts</p>
+                <ul class="space-y-1">
+                  {alert.related.alerts.map((a) => (
+                    <li>
+                      <a href={`${base}/runbooks/${category.slug}/${service.slug}/${a.url.replace(/^\.\.\//, '')}`} class="text-brand dark:text-brand-dark hover:underline">{a.name}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(alert.related?.docs?.length ?? 0) > 0 && (
+              <div>
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Documentation</p>
+                <ul class="space-y-1">
+                  {alert.related.docs.map((d) => (
+                    <li>
+                      <a href={d.url} target="_blank" rel="noopener" class="text-brand dark:text-brand-dark hover:underline">{d.name}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+    </div>
+
+    <!-- Credits -->
+    {alert.credits && (
+      <p class="mt-8 text-xs text-slate-400 dark:text-slate-500">
+        <a href="https://runbooks.gitlab.com/template-alert-playbook/" target="_blank" rel="noopener" class="hover:underline">{alert.credits}</a>
+      </p>
+    )}
+  </div>
+</BaseLayout>
