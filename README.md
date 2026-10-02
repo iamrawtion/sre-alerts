@@ -13,9 +13,9 @@ This repository starts with 940+ battle-tested Prometheus alerting rules and is 
 | <img src="https://cdn.simpleicons.org/grafana" width="16"/> **Thanos Configuration** | 🔜 Planned |
 | <img src="https://cdn.simpleicons.org/victoriametrics" width="16"/> **VictoriaMetrics Configuration** | 🔜 Planned |
 | <img src="https://cdn.simpleicons.org/newrelic" width="16"/> **NewRelic Integration** | 🔜 Planned |
-| <img src="https://cdn.simpleicons.org/nagios" width="16"/> **Nagios Configuration** | 🔜 Planned |
-| <img src="https://cdn.simpleicons.org/zabbix" width="16"/> **Zabbix Configuration** | 🔜 Planned |
-| <img src="https://cdn.simpleicons.org/uptimerobot" width="16"/> **UptimeRobot Integration** | 🔜 Planned |
+| 🔴 **Nagios Configuration** | 🔜 Planned |
+| 🔷 **Zabbix Configuration** | 🔜 Planned |
+| 🟢 **UptimeRobot Integration** | 🔜 Planned |
 | 📖 **Runbooks & Troubleshooting Guides** | 🔜 Planned |
 
 ## 🔥 Prometheus Alerting Rules
