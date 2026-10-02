@@ -1,8 +1,10 @@
 ---
 import ThemeToggle from './ThemeToggle.astro';
 import SearchOverlay from './SearchOverlay.astro';
+import ToolSwitcher from './ToolSwitcher.astro';
 import { SITE_NAME, GITHUB_URL, GITHUB_CONTRIBUTING_URL } from '../data/site';
 import { getGithubStars } from '../data/github';
+import { prometheusTools } from '../data/tools';
 
 interface Props {
   base: string;
@@ -31,6 +33,9 @@ const starsLabel = stars > 0 ? (stars >= 1000 ? `${(stars / 1000).toFixed(1)}k` 
         <span class="hidden sm:block text-sm">{SITE_NAME}</span>
         <span class="sm:hidden text-sm">SRE</span>
       </a>
+
+      <!-- Tool switcher -->
+      <ToolSwitcher activeTool={prometheusTools} base={base} />
 
       <!-- Desktop nav -->
       <nav class="hidden md:flex items-center gap-6" aria-label="Main navigation">
@@ -145,6 +150,20 @@ const starsLabel = stars > 0 ? (stars >= 1000 ? `${(stars / 1000).toFixed(1)}k` 
     class="hidden md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
   >
     <nav class="px-4 py-3 space-y-1" aria-label="Mobile navigation">
+      <!-- Mobile tool switcher -->
+      <div class="pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
+        <p class="px-3 py-1 text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Monitoring tool</p>
+        <a href={`${base}/prometheus/`} class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-brand dark:text-brand-dark bg-brand/5 dark:bg-brand-dark/5">
+          <img src="https://cdn.simpleicons.org/prometheus" alt="" class="w-4 h-4" aria-hidden="true" />
+          Prometheus
+        </a>
+        <div class="flex items-center justify-between px-3 py-1.5 text-sm text-slate-400 dark:text-slate-500">
+          <span>Datadog</span><span class="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">soon</span>
+        </div>
+        <div class="flex items-center justify-between px-3 py-1.5 text-sm text-slate-400 dark:text-slate-500">
+          <span>New Relic</span><span class="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">soon</span>
+        </div>
+      </div>
       <button
         type="button"
         id="mobile-search-btn"

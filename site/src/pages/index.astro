@@ -5,6 +5,8 @@ import ServiceCard from '../components/ServiceCard.astro';
 import ServiceLogo from '../components/ServiceLogo.astro';
 import { data, getGroupSlug, getRuleCount, getTotalRuleCount, getTotalServiceCount, getPopularServices, RULES_DATA_MODIFIED } from '../data/rules';
 import { SITE_URL, GITHUB_URL, schemaAuthor, schemaPublisher, schemaWebSite, SITE_DATE_PUBLISHED, LICENSE_CC_BY_URL, LICENSE_MIT_URL } from '../data/site';
+import ToolCard from '../components/ToolCard.astro';
+import { tools } from '../data/tools';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const totalRules = getTotalRuleCount();
@@ -197,8 +199,21 @@ const jsonLd = {
         {totalRules} production-ready Prometheus alerting rules for {totalServices} services — plus monitoring platform configs, third-party integrations, and per-service runbooks with step-by-step troubleshooting guides.
       </p>
 
-      <!-- CTA buttons -->
-      <p class="text-xs font-medium tracking-wider uppercase text-slate-400 dark:text-slate-500 mb-3">Browse all</p>
+      <!-- Tool picker -->
+      <p class="text-xs font-medium tracking-wider uppercase text-slate-400 dark:text-slate-500 mb-3">Choose your monitoring tool</p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-xl mx-auto mb-6">
+        {tools.map((tool) => (
+          <ToolCard
+            tool={tool}
+            base={base}
+            isActive={tool.slug === 'prometheus'}
+            ruleCount={tool.slug === 'prometheus' ? totalRules : undefined}
+          />
+        ))}
+      </div>
+
+      <!-- Scoped CTA -->
+      <p class="text-xs font-medium tracking-wider uppercase text-slate-400 dark:text-slate-500 mb-3">Browse Prometheus</p>
       <div class="flex flex-wrap justify-center gap-3">
         <a
           href={`${base}/rules/`}

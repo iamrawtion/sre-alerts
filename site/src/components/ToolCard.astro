@@ -1,0 +1,45 @@
+---
+import type { Tool } from '../data/tools';
+
+interface Props {
+  tool: Tool;
+  base: string;
+  isActive?: boolean;
+  ruleCount?: number;
+}
+
+const { tool, base, isActive = false, ruleCount } = Astro.props;
+
+const cardClasses = [
+  'flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm font-medium transition-colors',
+  tool.status === 'live'
+    ? isActive
+      ? 'border-brand dark:border-brand-dark bg-brand/5 dark:bg-brand-dark/5 text-slate-900 dark:text-white'
+      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-brand/50 dark:hover:border-brand-dark/50 hover:text-slate-900 dark:hover:text-white'
+    : 'border-slate-200 dark:border-slate-700 border-dashed bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 cursor-default',
+].join(' ');
+---
+
+{tool.status === 'live' ? (
+  <a href={`${base}${tool.paths.hub}`} class={cardClasses}>
+    {tool.logo
+      ? <img src={tool.logo} alt="" class={`w-5 h-5 flex-shrink-0 ${isActive ? '' : 'opacity-80'}`} aria-hidden="true" />
+      : <span class="text-base" aria-hidden="true">{tool.emoji}</span>
+    }
+    <span class="flex-1 min-w-0 truncate">{tool.name}</span>
+    {ruleCount && (
+      <span class="text-xs px-1.5 py-0.5 rounded-full bg-brand/10 dark:bg-brand-dark/10 text-brand dark:text-brand-dark font-medium tabular-nums flex-shrink-0">
+        {ruleCount >= 1000 ? `${(ruleCount / 1000).toFixed(1)}k` : ruleCount} rules
+      </span>
+    )}
+  </a>
+) : (
+  <div class={cardClasses}>
+    {tool.logo
+      ? <img src={tool.logo} alt="" class="w-5 h-5 flex-shrink-0 opacity-30" aria-hidden="true" />
+      : <span class="text-base opacity-40" aria-hidden="true">{tool.emoji}</span>
+    }
+    <span class="flex-1 min-w-0 truncate">{tool.name}</span>
+    <span class="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium flex-shrink-0">planned</span>
+  </div>
+)}
