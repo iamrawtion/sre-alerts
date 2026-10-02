@@ -4,27 +4,25 @@
 export const SITE_URL = `${(import.meta.env.SITE as string).replace(/\/$/, '')}${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
 export const SITE_ORIGIN = import.meta.env.SITE as string;
 
-export const SITE_NAME = 'Awesome Prometheus Alerts';
+export const SITE_NAME = 'SRE Alerts & Runbooks';
 
 /** ISO date the project was first published — used as datePublished across all schemas */
-export const SITE_DATE_PUBLISHED = '2018-10-21';
+export const SITE_DATE_PUBLISHED = '2026-10-02';
 
 // Author
-export const AUTHOR_NAME = 'Samuel Berthe';
-export const AUTHOR_GITHUB_URL = 'https://github.com/samber';
-export const TWITTER_HANDLE = '@samuelberthe';
+export const AUTHOR_NAME = 'Roshan Nagekar';
+export const AUTHOR_GITHUB_URL = 'https://github.com/iamrawtion';
+export const TWITTER_HANDLE = '@iamrawtion';
 
 // GitHub
-export const GITHUB_URL = 'https://github.com/samber/awesome-prometheus-alerts';
-export const GITHUB_API_REPO_URL = 'https://api.github.com/repos/samber/awesome-prometheus-alerts';
+export const GITHUB_URL = 'https://github.com/iamrawtion/sre-alerts';
+export const GITHUB_API_REPO_URL = 'https://api.github.com/repos/iamrawtion/sre-alerts';
 export const GITHUB_CONTRIBUTING_URL = `${GITHUB_URL}/blob/master/CONTRIBUTING.md`;
 export const GITHUB_LICENSE_URL = `${GITHUB_URL}/blob/master/LICENSE`;
 
-// Sibling awesome lists maintained alongside this one, cross-linked from the footer.
+// Portfolio cross-link shown in the footer.
 export const SIBLING_AWESOME_LISTS = [
-  { name: 'Awesome AI-Native', url: 'https://samber.github.io/awesome-ai-native/' },
-  { name: 'Awesome OLAP', url: 'https://samber.github.io/awesome-olap/' },
-  { name: 'Awesome User Research', url: 'https://samber.github.io/awesome-user-research/' },
+  { name: 'Portfolio', url: 'https://iamrawtion.github.io/' },
 ];
 
 // Licenses
@@ -45,10 +43,10 @@ export const schemaAuthor = {
 };
 
 export const schemaPublisher = {
-  '@type': 'Organization',
-  name: 'Prometheus Alerts authors',
-  url: GITHUB_URL,
-  sameAs: [GITHUB_URL],
+  '@type': 'Person',
+  name: AUTHOR_NAME,
+  url: AUTHOR_GITHUB_URL,
+  sameAs: [AUTHOR_GITHUB_URL],
 };
 
 export const schemaWebSite = {

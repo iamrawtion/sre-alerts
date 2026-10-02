@@ -62,10 +62,10 @@ function buildRedirects(base) {
   }
 }
 
-const base = '/awesome-prometheus-alerts';
+const base = '/sre-alerts';
 
 export default defineConfig({
-  site: 'https://samber.github.io',
+  site: 'https://iamrawtion.github.io',
   base,
   redirects: { ...buildRedirects(base) },
   output: 'static',

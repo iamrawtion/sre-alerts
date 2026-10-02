@@ -1,4 +1,4 @@
-name: Site build
+name: Site build and deploy
 
 on:
   pull_request:
@@ -12,8 +12,17 @@ on:
       - site/**
       - _data/**
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  site-build:
+  build:
     name: Build Astro site
     runs-on: ubuntu-latest
     steps:
@@ -47,3 +56,22 @@ jobs:
           ASTRO_TELEMETRY_DISABLED: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
