@@ -17,3 +17,141 @@ This repository starts with 940+ battle-tested Prometheus alerting rules and is 
 | <img src="https://cdn.simpleicons.org/zabbix" width="16"/> **Zabbix Configuration** | 🔜 Planned |
 | <img src="https://cdn.simpleicons.org/uptimerobot" width="16"/> **UptimeRobot Integration** | 🔜 Planned |
 | 📖 **Runbooks & Troubleshooting Guides** | 🔜 Planned |
+
+## 🔥 Prometheus Alerting Rules
+
+940+ production-ready alerting rules covering 90+ services across 13 categories.
+Each rule ships as a copy-pasteable PromQL snippet with a documented threshold.
+
+#### Basic resource monitoring
+
+- Prometheus self-monitoring
+- Host and hardware
+- S.M.A.R.T Device Monitoring
+- IPMI
+- Docker containers
+- Blackbox
+- Windows Server
+- VMware
+- Proxmox VE
+- Netdata
+- eBPF
+- Process Exporter
+- Systemd
+
+#### Databases
+
+- MySQL
+- PostgreSQL
+- SQL Server
+- Oracle Database
+- Patroni
+- PGBouncer
+- Redis
+- Memcached
+- MongoDB
+- Elasticsearch
+- OpenSearch
+- Meilisearch
+- Cassandra
+- Clickhouse
+- CouchDB
+- Solr
+
+#### Message brokers
+
+- RabbitMQ
+- Zookeeper
+- Kafka
+- Pulsar
+- Nats
+
+#### Proxies, load balancers and service meshes
+
+- Nginx
+- Apache
+- HaProxy
+- Traefik
+- Caddy
+- Envoy
+- Linkerd
+- Istio
+
+#### Runtimes
+
+- PHP-FPM
+- JVM
+- Golang
+- Ruby
+- Python
+- Sidekiq
+
+#### Data engineering
+
+- Apache Flink
+- Apache Spark
+- Hadoop
+
+#### Orchestrators
+
+- Kubernetes
+- Nomad
+- Consul
+- Etcd
+- OpenStack
+
+#### CI/CD
+
+- Jenkins
+- ArgoCD
+- FluxCD
+- GitLab CI
+- Spinnaker
+
+#### Network and security
+
+- SpeedTest
+- SSL/TLS
+- cert-manager
+- Juniper
+- CoreDNS
+- Freeswitch
+- Hashicorp Vault
+- sip-exporter
+- Keycloak
+- Cloudflare
+- SNMP
+- Cilium
+- WireGuard
+
+#### Storage
+
+- Ceph
+- ZFS
+- OpenEBS
+- Minio
+
+#### Cloud providers
+
+- AWS CloudWatch
+- Google Cloud Stackdriver
+- DigitalOcean
+- Azure
+
+#### Observability
+
+- Thanos
+- Loki
+- Promtail
+- Cortex
+- Grafana Tempo
+- Grafana Mimir
+- Grafana Alloy
+- OpenTelemetry Collector
+- Jaeger
+
+#### Other
+
+- APC UPS
+- Graph Node
+- LiteLLM
