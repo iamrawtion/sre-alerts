@@ -99,7 +99,7 @@ const milestoneFormatted = STAR_MILESTONE.toLocaleString('en');
       }
     }
 
-    if (!isFresh) fetch('https://api.github.com/repos/samber/awesome-prometheus-alerts', {
+    if (!isFresh) fetch('https://api.github.com/repos/iamrawtion/sre-alerts', {
       headers: { Accept: 'application/vnd.github+json' },
     })
       .then((r) => r.ok ? r.json() : null)

@@ -489,5 +489,5 @@ export function getAllExporters(): Array<{
 /** Build the raw GitHub URL for a dist file */
 export function getDistUrl(serviceName: string, exporterSlug: string): string {
   const serviceSlug = serviceName.replace(/ /g, '-').toLowerCase();
-  return `https://raw.githubusercontent.com/samber/awesome-prometheus-alerts/refs/heads/master/dist/rules/${serviceSlug}/${exporterSlug}.yml`;
+  return `https://raw.githubusercontent.com/iamrawtion/sre-alerts/refs/heads/master/dist/rules/${serviceSlug}/${exporterSlug}.yml`;
 }
