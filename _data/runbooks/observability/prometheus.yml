@@ -1,0 +1,199 @@
+service: "Prometheus"
+slug: "prometheus"
+category: "observability"
+category_name: "Observability"
+description: "Troubleshooting guide for Prometheus self-monitoring alerts — TSDB, WAL, rule evaluation, and scrape failures."
+
+alerts:
+  - name: "Prometheus target missing"
+    slug: "prometheus-target-missing"
+    severity: warning
+
+    overview:
+      what: "A scrape target has disappeared from the active targets list. The up series for this target is absent."
+      contributing_factors:
+        - "Service restarted and changed IP or port"
+        - "Service discovery configuration changed"
+        - "Target is down or unreachable on the metrics port"
+        - "Relabeling rule dropped the target"
+      affected_components:
+        - "Alerting rules that depend on metrics from this target"
+        - "Dashboards showing metrics from this target"
+      expected_action: "Check the Prometheus targets UI for the last error, then restore the target or update the scrape config."
+
+    services:
+      - name: "Prometheus"
+        overview_url: "https://prometheus.io/docs/"
+        team: ""
+
+    metrics:
+      name: "up"
+      description: "Synthetic gauge written by Prometheus after each scrape. 1 = scrape succeeded, 0 = failed."
+      unit: "boolean (0 or 1)"
+      threshold_rationale: "A missing target means a gap in metric coverage. Alerting rules relying on those metrics become unreliable."
+      normal_behavior: "All configured targets show up=1 after each scrape interval."
+      screenshots:
+        - file: "prometheus-target-missing-firing.png"
+          caption: "Prometheus targets UI showing a down or missing target"
+        - file: "prometheus-target-missing-recovery.png"
+          caption: "Target back in UP state"
+
+    alert_behavior:
+      silencing: "Silence when decommissioning a target intentionally. Remove the target from the scrape config instead of silencing long-term."
+      frequency: "Occasional — often follows a service restart, deploy, or network change."
+
+    severities:
+      guidance: "Warning. Escalate if the missing target is a critical service with no redundancy."
+      impacted_users: "SRE team — missing targets create blind spots in alerting coverage."
+      things_to_check:
+        - "Is the target service running?"
+        - "Did the IP or port change?"
+        - "Is a relabeling rule dropping it?"
+
+    verification:
+      prometheus_query: "absent(up{job='<job-name>'})"
+      dashboards:
+        - name: "Prometheus Targets"
+          url: ""
+      log_queries:
+        - name: "Prometheus logs"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Open the Prometheus targets UI: `http://<prometheus-host>:9090/targets`"
+        - "Filter by the job name — read the last error message"
+        - "From the Prometheus host, curl the metrics endpoint directly: `curl http://<target-host>:<port>/metrics | head`"
+        - "If using Kubernetes SD: verify the pod/service labels match the relabeling rules in the scrape config"
+        - "If using static config: verify the host and port are correct and reachable"
+        - "Check if a recent relabeling change dropped the target: `http://<prometheus-host>:9090/config`"
+      dashboards:
+        - name: "Prometheus Self-Monitoring"
+          url: ""
+      commands:
+        - "curl -s http://<target-host>:<port>/metrics | head -20"
+        - "curl -s http://<prometheus-host>:9090/api/v1/targets | jq '.data.activeTargets[] | select(.health != \"up\")'"
+
+    resolutions:
+      - description: "Service was restarted and the pod IP changed. Kubernetes SD picked it up within one scrape interval after the pod became Ready."
+        incident_url: ""
+
+    dependencies:
+      - "Service discovery mechanism (Kubernetes SD, Consul SD, static config)"
+      - "Network connectivity between Prometheus and target"
+
+    escalation:
+      guidance: "Escalate if a critical service's metrics have been missing for more than one scrape interval and the cause is unknown."
+      slack_channels:
+        - name: "#observability-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "Add `for: 5m` to avoid alerting on targets that briefly disappear during rolling restarts."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Prometheus rule evaluation slow"
+          url: "../prometheus-rule-evaluation-slow/"
+      docs:
+        - name: "Prometheus target configuration"
+          url: "https://prometheus.io/docs/prometheus/latest/configuration/configuration/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "Prometheus rule evaluation slow"
+    slug: "prometheus-rule-evaluation-slow"
+    severity: warning
+
+    overview:
+      what: "A rule group's evaluation takes longer than its configured interval. Alerts from this group may be delayed."
+      contributing_factors:
+        - "Complex PromQL with high label cardinality"
+        - "Prometheus under-resourced — insufficient CPU"
+        - "TSDB under heavy concurrent write load"
+      affected_components:
+        - "All alerting and recording rules in the slow rule group"
+        - "Dependent dashboards that query the recording rules"
+      expected_action: "Identify the slow rule group, pre-compute expensive sub-expressions as recording rules, or reduce cardinality."
+
+    services:
+      - name: "Prometheus"
+        overview_url: "https://prometheus.io/docs/"
+        team: ""
+
+    metrics:
+      name: "prometheus_rule_group_last_duration_seconds"
+      description: "Duration of the last evaluation of a rule group, in seconds."
+      unit: "seconds"
+      threshold_rationale: "If evaluation takes longer than the group interval, subsequent evaluations queue up and alerts are delayed."
+      normal_behavior: "Rule group evaluation should complete in well under the group interval (typically < 10% of the interval)."
+      screenshots:
+        - file: "prometheus-slow-rules-firing.png"
+          caption: "Dashboard showing rule group evaluation time exceeding interval"
+        - file: "prometheus-slow-rules-recovery.png"
+          caption: "Dashboard after rule optimization"
+
+    alert_behavior:
+      silencing: "Silence while actively optimizing the rule group."
+      frequency: "Rare — usually appears after cardinality growth or a new complex rule is added."
+
+    severities:
+      guidance: "Warning. Escalate if evaluation lag is causing known alert delays in production."
+      impacted_users: "SRE team — delayed alerts mean slower incident detection."
+      things_to_check:
+        - "Which rule group is slow? (`prometheus_rule_group_last_duration_seconds`)"
+        - "What is the cardinality of the metrics involved?"
+        - "Was a new rule recently added?"
+
+    verification:
+      prometheus_query: "prometheus_rule_group_last_duration_seconds > prometheus_rule_group_interval_seconds"
+      dashboards:
+        - name: "Prometheus Self-Monitoring"
+          url: ""
+      log_queries:
+        - name: "Prometheus slow query logs"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Identify slow groups: query `prometheus_rule_group_last_duration_seconds` and sort descending"
+        - "In Prometheus UI go to Status → Rules — look for groups with high last duration"
+        - "For each slow rule, run the PromQL manually and time it: note the cardinality of the result"
+        - "Pre-compute expensive sub-expressions as recording rules with a shorter interval"
+        - "Check Prometheus CPU usage — if saturated, scale vertically or shard rule groups"
+      dashboards:
+        - name: "Prometheus Self-Monitoring"
+          url: ""
+      commands:
+        - "curl -s 'http://<prometheus>:9090/api/v1/query?query=prometheus_rule_group_last_duration_seconds' | jq '.data.result | sort_by(.value[1]) | reverse | .[:5]'"
+
+    resolutions:
+      - description: "A new recording rule used a high-cardinality join. Replacing the join with a pre-computed recording rule reduced evaluation time by 90%."
+        incident_url: ""
+
+    dependencies:
+      - "TSDB write throughput"
+      - "CPU and memory available to Prometheus"
+
+    escalation:
+      guidance: "Escalate if evaluation lag exceeds 2x the group interval for more than 10 minutes."
+      slack_channels:
+        - name: "#observability-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "Split large rule groups into smaller ones with focused scopes to reduce per-group evaluation time."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Prometheus target missing"
+          url: "../prometheus-target-missing/"
+      docs:
+        - name: "Prometheus recording rules"
+          url: "https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"

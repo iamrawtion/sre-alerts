@@ -1,0 +1,196 @@
+service: "Redis"
+slug: "redis"
+category: "databases"
+category_name: "Databases"
+description: "Troubleshooting guide for Redis alerting rules — memory, persistence, replication, and latency."
+
+alerts:
+  - name: "Redis down"
+    slug: "redis-down"
+    severity: critical
+
+    overview:
+      what: "redis_up == 0. Redis is not responding to the exporter."
+      contributing_factors:
+        - "Process crashed or was OOM-killed"
+        - "maxmemory reached with policy noeviction"
+        - "AOF or RDB write failure causing crash"
+      affected_components:
+        - "All services using Redis for caching, sessions, or queues"
+      expected_action: "Restore the Redis process. If maxmemory is the cause, review eviction policy before restarting."
+
+    services:
+      - name: "Redis"
+        overview_url: "https://redis.io/docs/"
+        team: ""
+
+    metrics:
+      name: "redis_up"
+      description: "Binary gauge from redis_exporter. 1 = reachable, 0 = down."
+      unit: "boolean (0 or 1)"
+      threshold_rationale: "Any 0 means Redis is unreachable."
+      normal_behavior: "Always 1."
+      screenshots:
+        - file: "redis-down-firing.png"
+          caption: "Dashboard when redis_up == 0"
+        - file: "redis-down-recovery.png"
+          caption: "Dashboard after recovery"
+
+    alert_behavior:
+      silencing: "Silence during planned maintenance."
+      frequency: "Rare."
+
+    severities:
+      guidance: "Critical. Impact depends on whether Redis is used for caching only (degraded performance) or for sessions/queues (data loss risk)."
+      impacted_users: "All users of services backed by this Redis instance."
+      things_to_check:
+        - "Is Redis used for sessions? If so, users may be logged out."
+        - "Is Redis used as a queue? Check for message loss."
+
+    verification:
+      prometheus_query: "redis_up == 0"
+      dashboards:
+        - name: "Redis Overview"
+          url: ""
+      log_queries:
+        - name: "Redis logs"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Check Redis logs: `/var/log/redis/redis-server.log`"
+        - "Check process: `systemctl status redis`"
+        - "Check system memory: `free -h`"
+        - "Check Redis maxmemory config: `redis-cli CONFIG GET maxmemory`"
+        - "Attempt restart: `systemctl restart redis`"
+      dashboards:
+        - name: "Redis Overview"
+          url: ""
+      commands:
+        - "systemctl status redis"
+        - "redis-cli CONFIG GET maxmemory"
+        - "redis-cli CONFIG GET maxmemory-policy"
+
+    resolutions:
+      - description: "maxmemory reached with noeviction policy. Switched to allkeys-lru and restarted."
+        incident_url: ""
+
+    dependencies:
+      - "Application services (cache, sessions, queues)"
+      - "redis_exporter"
+
+    escalation:
+      guidance: "Escalate immediately if Redis is used for sessions or job queues."
+      slack_channels:
+        - name: "#infrastructure-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "Add `for: 1m` to tolerate a single restart."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Redis memory high"
+          url: "../redis-memory-high/"
+      docs:
+        - name: "redis_exporter"
+          url: "https://github.com/oliver006/redis_exporter"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "Redis memory high"
+    slug: "redis-memory-high"
+    severity: warning
+
+    overview:
+      what: "Redis memory usage exceeds 90% of maxmemory."
+      contributing_factors:
+        - "No TTL set on keys — keys accumulate indefinitely"
+        - "Sudden data ingestion spike"
+        - "Eviction policy not configured or misconfigured"
+      affected_components:
+        - "Redis key eviction behavior"
+        - "Application services relying on data persistence in Redis"
+      expected_action: "Review eviction policy and key TTLs. If memory is genuinely exhausted, increase maxmemory or add a node."
+
+    services:
+      - name: "Redis"
+        overview_url: "https://redis.io/docs/"
+        team: ""
+
+    metrics:
+      name: "redis_memory_used_bytes / redis_config_maxmemory"
+      description: "Ratio of used memory to configured maxmemory."
+      unit: "ratio (0–1), alert threshold at 0.9"
+      threshold_rationale: "At 90% of maxmemory, Redis is close to either evicting keys aggressively or refusing writes (noeviction)."
+      normal_behavior: "For a cache workload, 70–85% is expected. For a persistent store, it should stay well below maxmemory."
+      screenshots:
+        - file: "redis-memory-firing.png"
+          caption: "Dashboard when memory ratio exceeds 90%"
+        - file: "redis-memory-recovery.png"
+          caption: "Dashboard after memory drops below threshold"
+
+    alert_behavior:
+      silencing: "Silence during bulk data loads when temporary high memory is expected."
+      frequency: "Occasional — typically precedes a Redis down event if not addressed."
+
+    severities:
+      guidance: "Warning. Escalate if memory reaches 100% and eviction policy is noeviction."
+      impacted_users: "Users of services that store data in Redis."
+      things_to_check:
+        - "What is the eviction policy? (`redis-cli CONFIG GET maxmemory-policy`)"
+        - "Are there keys with no TTL? (`redis-cli INFO keyspace`)"
+
+    verification:
+      prometheus_query: "redis_memory_used_bytes / redis_config_maxmemory > 0.9"
+      dashboards:
+        - name: "Redis Memory"
+          url: ""
+      log_queries: []
+
+    troubleshooting:
+      steps:
+        - "Check memory stats: `redis-cli INFO memory | grep -E 'used_memory_human|maxmemory_human|mem_fragmentation_ratio'`"
+        - "Check eviction policy: `redis-cli CONFIG GET maxmemory-policy`"
+        - "Check key distribution and TTLs: `redis-cli INFO keyspace`"
+        - "Find large keys (use carefully on production): `redis-cli --bigkeys`"
+        - "If no eviction policy, set one for cache workloads: `redis-cli CONFIG SET maxmemory-policy allkeys-lru`"
+      dashboards:
+        - name: "Redis Memory"
+          url: ""
+      commands:
+        - "redis-cli INFO memory"
+        - "redis-cli CONFIG GET maxmemory-policy"
+        - "redis-cli INFO keyspace"
+        - "redis-cli --bigkeys"
+
+    resolutions:
+      - description: "Keys with no TTL accumulated over weeks. Added TTL to the offending key pattern and memory normalized."
+        incident_url: ""
+
+    dependencies:
+      - "Application key write patterns"
+      - "Redis maxmemory configuration"
+
+    escalation:
+      guidance: "Escalate if memory hits 100% with noeviction policy — writes will start failing."
+      slack_channels:
+        - name: "#infrastructure-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "The 90% threshold is a ratio of maxmemory — self-normalizing. Only adjust if your eviction policy safely handles higher saturation."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Redis down"
+          url: "../redis-down/"
+      docs:
+        - name: "Redis eviction policies"
+          url: "https://redis.io/docs/manual/eviction/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"

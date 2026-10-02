@@ -1,0 +1,311 @@
+service: "MySQL"
+slug: "mysql"
+category: "databases"
+category_name: "Databases"
+description: "Troubleshooting guide for MySQL alerting rules — connections, replication, InnoDB, and slow queries."
+
+alerts:
+  - name: "MySQL down"
+    slug: "mysql-down"
+    severity: critical
+
+    overview:
+      what: "The mysqld_exporter reports mysql_up == 0. The MySQL instance is unreachable."
+      contributing_factors:
+        - "Process crashed or was OOM-killed"
+        - "Disk full — InnoDB cannot write redo logs"
+        - "Corrupted data directory"
+        - "Authentication plugin change broke the exporter user"
+      affected_components:
+        - "All application services that read or write to this MySQL instance"
+        - "mysqld_exporter scrape target"
+      expected_action: "Immediately investigate and restore the MySQL process. If this is the primary, check whether replicas can serve read traffic in the interim."
+
+    services:
+      - name: "MySQL"
+        overview_url: "https://dev.mysql.com/doc/"
+        team: ""
+
+    metrics:
+      name: "mysql_up"
+      description: "Binary gauge exported by mysqld_exporter. Value is 1 when the exporter can connect to MySQL, 0 when it cannot."
+      unit: "boolean (0 or 1)"
+      threshold_rationale: "Any value of 0 means the instance is completely unreachable. There is no partial state."
+      normal_behavior: "Should always be 1. A value of 0 is never expected during normal operation."
+      screenshots:
+        - file: "mysql-down-firing.png"
+          caption: "Dashboard when mysql_up == 0 is firing"
+        - file: "mysql-down-recovery.png"
+          caption: "Dashboard after MySQL recovers and mysql_up returns to 1"
+
+    alert_behavior:
+      silencing: "Silence via Alertmanager during planned maintenance windows. Use a time-bounded silence with a comment explaining the maintenance."
+      frequency: "Rare — should only fire on process crash, OOM kill, or network partition."
+
+    severities:
+      guidance: "This is critical severity. If the primary is down and no replica can serve writes, treat as P1."
+      impacted_users: "All users of services that depend on this MySQL instance."
+      things_to_check:
+        - "Is this the primary or a read replica?"
+        - "Are application services logging connection errors?"
+        - "Is the disk full on the MySQL host?"
+
+    verification:
+      prometheus_query: "mysql_up == 0"
+      dashboards:
+        - name: "MySQL Overview"
+          url: ""
+      log_queries:
+        - name: "MySQL error logs"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Check the MySQL error log: `journalctl -u mysql --since '5 minutes ago'` or `/var/log/mysql/error.log`"
+        - "Check if the process is running: `systemctl status mysql`"
+        - "Check disk space: `df -h /var/lib/mysql`"
+        - "Attempt to start: `systemctl start mysql` and capture the output"
+        - "If disk full, find the largest files: `du -sh /var/lib/mysql/* | sort -rh | head`"
+        - "Verify exporter connectivity: `mysql -u exporter -p -h localhost -e 'SELECT 1'`"
+      dashboards:
+        - name: "MySQL Overview"
+          url: ""
+      commands:
+        - "systemctl status mysql"
+        - "journalctl -u mysql --since '10 minutes ago'"
+        - "df -h /var/lib/mysql"
+        - "mysql -u exporter -p -h localhost -e 'SELECT 1'"
+
+    resolutions:
+      - description: "Process was OOM-killed. Increasing memory limits and adding a swap file resolved it."
+        incident_url: ""
+      - description: "Disk full due to unchecked binary log growth. Purging old binlogs restored service."
+        incident_url: ""
+
+    dependencies:
+      - "Application services (read/write traffic)"
+      - "Backup agent"
+      - "mysqld_exporter"
+
+    escalation:
+      guidance: "Escalate immediately if the primary is down and replicas cannot serve write traffic. Page the database team."
+      slack_channels:
+        - name: "#database-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "Threshold of 0 is non-negotiable — any value of 0 is a real outage. The `for: 1m` delay on the alert rule tolerates a single restart."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "MySQL too many connections"
+          url: "../mysql-too-many-connections/"
+      docs:
+        - name: "mysqld_exporter"
+          url: "https://github.com/prometheus/mysqld_exporter"
+        - name: "MySQL error log reference"
+          url: "https://dev.mysql.com/doc/refman/8.0/en/error-log.html"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "MySQL too many connections"
+    slug: "mysql-too-many-connections"
+    severity: warning
+
+    overview:
+      what: "Connection count exceeds 80% of max_connections. New connections may be refused with 'Too many connections'."
+      contributing_factors:
+        - "Connection leak — connections not returned to pool"
+        - "Slow queries holding connections open longer than expected"
+        - "max_connections set too low for the current workload"
+      affected_components:
+        - "Application services opening new connections"
+        - "Connection pool managers"
+      expected_action: "Identify and kill long-running or idle connections. If the issue is persistent, increase max_connections or deploy a connection pooler."
+
+    services:
+      - name: "MySQL"
+        overview_url: "https://dev.mysql.com/doc/"
+        team: ""
+
+    metrics:
+      name: "mysql_global_status_threads_connected / mysql_global_variables_max_connections"
+      description: "Ratio of current connected threads to the configured maximum. Exported by mysqld_exporter."
+      unit: "ratio (0–1), alert threshold at 0.8"
+      threshold_rationale: "At 80% of max_connections, there is still headroom to investigate before connections are refused. At 100%, new connections fail immediately."
+      normal_behavior: "Typically stays below 50% in healthy operation. Spikes during deploys or traffic bursts are normal but should recover within minutes."
+      screenshots:
+        - file: "mysql-connections-firing.png"
+          caption: "Dashboard when connection ratio exceeds 80%"
+        - file: "mysql-connections-recovery.png"
+          caption: "Dashboard after connection count drops below threshold"
+
+    alert_behavior:
+      silencing: "Silence during load tests or planned traffic migration events."
+      frequency: "Occasional — may fire during traffic spikes or after a deploy that causes connection leaks."
+
+    severities:
+      guidance: "Warning severity. Escalate to critical if connections reach 95%+ or new connection errors appear in application logs."
+      impacted_users: "Users of any service that opens new database connections."
+      things_to_check:
+        - "Are application error logs showing 'Too many connections'?"
+        - "Was there a recent deploy?"
+        - "Is a specific host or service responsible for the spike?"
+
+    verification:
+      prometheus_query: "mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.8"
+      dashboards:
+        - name: "MySQL Connections"
+          url: ""
+      log_queries:
+        - name: "Application connection errors"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Check current thread count: `SHOW STATUS LIKE 'Threads_connected';`"
+        - "Identify who is connected: `SHOW PROCESSLIST;`"
+        - "Find long-running queries: `SELECT * FROM information_schema.processlist WHERE time > 30 ORDER BY time DESC;`"
+        - "Kill a blocking query if safe: `KILL QUERY <id>;`"
+        - "Check configured maximum: `SHOW VARIABLES LIKE 'max_connections';`"
+        - "Increase temporarily if needed: `SET GLOBAL max_connections = 500;` — also update my.cnf for persistence"
+      dashboards:
+        - name: "MySQL Connections"
+          url: ""
+      commands:
+        - "SHOW STATUS LIKE 'Threads_connected';"
+        - "SHOW PROCESSLIST;"
+        - "SELECT * FROM information_schema.processlist WHERE time > 30 ORDER BY time DESC;"
+
+    resolutions:
+      - description: "Connection leak after a deploy — rolling restart of the application cleared stale connections."
+        incident_url: ""
+
+    dependencies:
+      - "Application connection pools"
+      - "PgBouncer or ProxySQL (if in use)"
+
+    escalation:
+      guidance: "Escalate if connections exceed 95% or if application errors are visible to end users."
+      slack_channels:
+        - name: "#database-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "The 80% threshold is a ratio of the configured max_connections — it is self-normalizing. Only adjust if your application tolerates a higher saturation level."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "MySQL down"
+          url: "../mysql-down/"
+        - name: "MySQL slow queries"
+          url: "../mysql-slow-queries/"
+      docs:
+        - name: "MySQL SHOW PROCESSLIST"
+          url: "https://dev.mysql.com/doc/refman/8.0/en/show-processlist.html"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "MySQL slow queries"
+    slug: "mysql-slow-queries"
+    severity: warning
+
+    overview:
+      what: "The rate of slow queries (exceeding long_query_time) is elevated."
+      contributing_factors:
+        - "Missing indexes on frequently queried columns"
+        - "Full table scans on large tables"
+        - "Lock contention from long-running transactions"
+        - "Inefficient query patterns after a schema or data volume change"
+      affected_components:
+        - "Application services making database queries"
+        - "InnoDB buffer pool (cache thrashing from full scans)"
+      expected_action: "Identify the slow queries using the slow query log or EXPLAIN, then add indexes or rewrite the query."
+
+    services:
+      - name: "MySQL"
+        overview_url: "https://dev.mysql.com/doc/"
+        team: ""
+
+    metrics:
+      name: "mysql_global_status_slow_queries"
+      description: "Cumulative counter of queries exceeding long_query_time. mysqld_exporter wraps this in rate()."
+      unit: "queries per second"
+      threshold_rationale: "Any sustained rate above 0 indicates queries exceeding the configured slow query threshold."
+      normal_behavior: "Should be 0 or near-0 in a well-tuned database."
+      screenshots:
+        - file: "mysql-slow-queries-firing.png"
+          caption: "Dashboard when slow query rate is elevated"
+        - file: "mysql-slow-queries-recovery.png"
+          caption: "Dashboard after slow queries return to baseline"
+
+    alert_behavior:
+      silencing: "Silence during batch jobs or ETL runs that are expected to run slow queries."
+      frequency: "Occasional — often follows schema changes, data growth, or missing index after a new feature deploy."
+
+    severities:
+      guidance: "Warning severity. Escalate if slow queries are causing connection pile-up or user-visible latency."
+      impacted_users: "Users of services making the slow queries."
+      things_to_check:
+        - "Was there a recent schema change or new feature deploy?"
+        - "Has the data volume grown significantly?"
+        - "Is lock contention visible in SHOW PROCESSLIST?"
+
+    verification:
+      prometheus_query: "rate(mysql_global_status_slow_queries[5m]) > 0"
+      dashboards:
+        - name: "MySQL Query Performance"
+          url: ""
+      log_queries:
+        - name: "MySQL slow query log"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Enable slow query log if not active: `SET GLOBAL slow_query_log = 1; SET GLOBAL long_query_time = 1;`"
+        - "Tail the slow query log: `/var/log/mysql/slow.log`"
+        - "Digest with pt-query-digest: `pt-query-digest /var/log/mysql/slow.log | head -100`"
+        - "For the top queries, run EXPLAIN: `EXPLAIN SELECT ...`"
+        - "Look for type=ALL (full scan) in the EXPLAIN output — add an index on the filtered column"
+      dashboards:
+        - name: "MySQL Query Performance"
+          url: ""
+      commands:
+        - "SET GLOBAL slow_query_log = 1;"
+        - "SET GLOBAL long_query_time = 1;"
+        - "pt-query-digest /var/log/mysql/slow.log | head -100"
+
+    resolutions:
+      - description: "Missing index on a foreign key column. Adding the index dropped slow query rate to zero."
+        incident_url: ""
+
+    dependencies:
+      - "Application query patterns"
+      - "InnoDB buffer pool sizing"
+
+    escalation:
+      guidance: "Escalate if slow queries are causing thread pile-up or end-user latency alerts."
+      slack_channels:
+        - name: "#database-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "If this fires too often for acceptable batch workloads, increase long_query_time rather than raising the alert threshold."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "MySQL too many connections"
+          url: "../mysql-too-many-connections/"
+      docs:
+        - name: "MySQL slow query log"
+          url: "https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html"
+        - name: "pt-query-digest"
+          url: "https://docs.percona.com/percona-toolkit/pt-query-digest.html"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"

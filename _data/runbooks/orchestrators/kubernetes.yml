@@ -1,0 +1,205 @@
+service: "Kubernetes"
+slug: "kubernetes"
+category: "orchestrators"
+category_name: "Orchestrators"
+description: "Troubleshooting guide for Kubernetes alerting rules — nodes, pods, deployments, and resource pressure."
+
+alerts:
+  - name: "Kubernetes node not ready"
+    slug: "kubernetes-node-not-ready"
+    severity: critical
+
+    overview:
+      what: "A node is in NotReady state. Pods scheduled on it may be evicted or unreachable."
+      contributing_factors:
+        - "Kubelet crashed or is not running"
+        - "Node is out of disk, memory, or PID resources"
+        - "Network partition — node cannot reach the API server"
+      affected_components:
+        - "All pods scheduled on the affected node"
+        - "Services with endpoints on this node"
+      expected_action: "SSH to the node, check kubelet status, and restore the node to Ready state. If unrecoverable, cordon and drain the node."
+
+    services:
+      - name: "Kubernetes"
+        overview_url: "https://kubernetes.io/docs/"
+        team: ""
+
+    metrics:
+      name: "kube_node_status_condition{condition='Ready',status='true'}"
+      description: "Gauge that is 1 when the node's Ready condition is True, 0 otherwise."
+      unit: "boolean (0 or 1)"
+      threshold_rationale: "Any node in NotReady state should be investigated immediately."
+      normal_behavior: "All nodes should have Ready=true at all times."
+      screenshots:
+        - file: "k8s-node-notready-firing.png"
+          caption: "Dashboard when node NotReady alert fires"
+        - file: "k8s-node-notready-recovery.png"
+          caption: "Dashboard after node returns to Ready"
+
+    alert_behavior:
+      silencing: "Silence during planned node maintenance with `kubectl cordon` first."
+      frequency: "Uncommon — usually indicates a hardware failure or kubelet crash."
+
+    severities:
+      guidance: "Critical. A NotReady node may cause pod evictions and service disruption."
+      impacted_users: "Users of services with pods on the affected node."
+      things_to_check:
+        - "How many nodes are affected?"
+        - "Are there pending pods that cannot be rescheduled?"
+        - "Is the control plane healthy?"
+
+    verification:
+      prometheus_query: "kube_node_status_condition{condition='Ready',status='true'} == 0"
+      dashboards:
+        - name: "Kubernetes Nodes"
+          url: ""
+      log_queries:
+        - name: "Kubelet logs"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Check all node statuses: `kubectl get nodes -o wide`"
+        - "Describe the affected node: `kubectl describe node <node-name>`"
+        - "SSH to the node and check kubelet: `systemctl status kubelet`"
+        - "Check kubelet logs: `journalctl -u kubelet --since '10 minutes ago' | tail -50`"
+        - "Check node conditions for resource pressure: `kubectl describe node <node-name> | grep -A5 Conditions`"
+        - "If kubelet is stopped: `systemctl restart kubelet`"
+        - "If node is unrecoverable: `kubectl cordon <node-name> && kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data`"
+      dashboards:
+        - name: "Kubernetes Nodes"
+          url: ""
+      commands:
+        - "kubectl get nodes -o wide"
+        - "kubectl describe node <node-name>"
+        - "systemctl status kubelet"
+        - "journalctl -u kubelet --since '10 minutes ago' | tail -50"
+
+    resolutions:
+      - description: "Disk pressure caused kubelet to mark node NotReady. Clearing unused images with `crictl rmi --prune` resolved it."
+        incident_url: ""
+
+    dependencies:
+      - "Container runtime (containerd/CRI-O)"
+      - "Cloud provider node health checks"
+      - "etcd (for API server connectivity)"
+
+    escalation:
+      guidance: "Escalate if more than one node is NotReady or if pods cannot be rescheduled."
+      slack_channels:
+        - name: "#platform-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "Add `for: 2m` to avoid alerting on transient API server connectivity blips."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Kubernetes pod crash looping"
+          url: "../kubernetes-pod-crash-looping/"
+      docs:
+        - name: "Kubernetes node troubleshooting"
+          url: "https://kubernetes.io/docs/tasks/debug/debug-cluster/debug-cluster/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "Kubernetes pod crash looping"
+    slug: "kubernetes-pod-crash-looping"
+    severity: warning
+
+    overview:
+      what: "A pod's restart count is high. The container is repeatedly crashing and being restarted by kubelet."
+      contributing_factors:
+        - "Application crash — unhandled exception, OOM kill"
+        - "Misconfigured liveness probe killing a healthy-but-slow-starting container"
+        - "Missing ConfigMap, Secret, or volume mount"
+      affected_components:
+        - "The specific pod and the service endpoints it provides"
+      expected_action: "Check the pod's previous container logs to identify the crash reason, then fix the root cause."
+
+    services:
+      - name: "Kubernetes"
+        overview_url: "https://kubernetes.io/docs/"
+        team: ""
+
+    metrics:
+      name: "kube_pod_container_status_restarts_total"
+      description: "Cumulative restart count per container. Alert fires when the rate of restarts is high."
+      unit: "restarts per 15 minutes"
+      threshold_rationale: "More than 3 restarts in 15 minutes indicates a persistent crash loop, not a transient startup failure."
+      normal_behavior: "Restart count is stable. A single restart on deploy is acceptable."
+      screenshots:
+        - file: "k8s-crashloop-firing.png"
+          caption: "Dashboard when crash loop alert fires"
+        - file: "k8s-crashloop-recovery.png"
+          caption: "Dashboard after pod stabilizes"
+
+    alert_behavior:
+      silencing: "Silence during deploys if the new version is expected to fail fast during rollout."
+      frequency: "Occasional — often accompanies a bad deploy or config change."
+
+    severities:
+      guidance: "Warning. Escalate to critical if the crash-looping pod is a singleton (no replicas) serving production traffic."
+      impacted_users: "Users of the service the pod belongs to."
+      things_to_check:
+        - "Is the pod part of a Deployment with multiple replicas?"
+        - "Was there a recent deploy?"
+        - "Is the crash an OOM kill or an application exception?"
+
+    verification:
+      prometheus_query: "increase(kube_pod_container_status_restarts_total[15m]) > 3"
+      dashboards:
+        - name: "Kubernetes Pods"
+          url: ""
+      log_queries:
+        - name: "Pod logs"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Find crash-looping pods: `kubectl get pods -A | grep -v Running | grep -v Completed`"
+        - "Describe the pod for events: `kubectl describe pod <pod-name> -n <namespace>`"
+        - "Check current container logs: `kubectl logs <pod-name> -n <namespace>`"
+        - "Check previous container logs: `kubectl logs <pod-name> -n <namespace> --previous`"
+        - "If OOM: check memory limits in the pod spec and increase if appropriate"
+        - "If liveness probe: check `initialDelaySeconds` — increase if the app starts slowly"
+        - "If missing config: check Events section of `kubectl describe` for mount failures"
+      dashboards:
+        - name: "Kubernetes Pods"
+          url: ""
+      commands:
+        - "kubectl get pods -A | grep -v Running | grep -v Completed"
+        - "kubectl describe pod <pod-name> -n <namespace>"
+        - "kubectl logs <pod-name> -n <namespace> --previous"
+
+    resolutions:
+      - description: "liveness probe initialDelaySeconds was too low for a slow-starting JVM app. Increasing it stopped the crash loop."
+        incident_url: ""
+
+    dependencies:
+      - "ConfigMaps and Secrets the pod mounts"
+      - "Downstream services the pod connects to on startup"
+
+    escalation:
+      guidance: "Escalate if the crash-looping pod is a singleton or if the crash is causing data corruption."
+      slack_channels:
+        - name: "#platform-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "The threshold of 3 restarts in 15 minutes distinguishes crash loops from normal rolling restarts on deploy."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Kubernetes node not ready"
+          url: "../kubernetes-node-not-ready/"
+      docs:
+        - name: "Kubernetes liveness probes"
+          url: "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"

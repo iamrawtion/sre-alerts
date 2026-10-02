@@ -1,0 +1,195 @@
+service: "PostgreSQL"
+slug: "postgresql"
+category: "databases"
+category_name: "Databases"
+description: "Troubleshooting guide for PostgreSQL alerting rules — connections, replication lag, bloat, and locks."
+
+alerts:
+  - name: "PostgreSQL down"
+    slug: "postgresql-down"
+    severity: critical
+
+    overview:
+      what: "pg_up == 0. The PostgreSQL instance is unreachable."
+      contributing_factors:
+        - "Postmaster process crashed"
+        - "Disk full — WAL directory or data directory"
+        - "OOM kill"
+      affected_components:
+        - "All services reading or writing to this PostgreSQL instance"
+      expected_action: "Immediately investigate and restore the PostgreSQL process."
+
+    services:
+      - name: "PostgreSQL"
+        overview_url: "https://www.postgresql.org/docs/"
+        team: ""
+
+    metrics:
+      name: "pg_up"
+      description: "Binary gauge from postgres_exporter. 1 = reachable, 0 = down."
+      unit: "boolean (0 or 1)"
+      threshold_rationale: "Any value of 0 means the instance is unreachable."
+      normal_behavior: "Always 1 during normal operation."
+      screenshots:
+        - file: "postgresql-down-firing.png"
+          caption: "Dashboard when pg_up == 0"
+        - file: "postgresql-down-recovery.png"
+          caption: "Dashboard after recovery"
+
+    alert_behavior:
+      silencing: "Silence during planned maintenance windows."
+      frequency: "Rare."
+
+    severities:
+      guidance: "Critical. If primary is down, assess whether replicas can serve reads and whether writes are blocked."
+      impacted_users: "All users of dependent services."
+      things_to_check:
+        - "Is this primary or replica?"
+        - "Is disk full?"
+        - "Are OOM kills visible in dmesg?"
+
+    verification:
+      prometheus_query: "pg_up == 0"
+      dashboards:
+        - name: "PostgreSQL Overview"
+          url: ""
+      log_queries:
+        - name: "PostgreSQL logs"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Check PostgreSQL logs: `journalctl -u postgresql --since '5 minutes ago'`"
+        - "Check process status: `systemctl status postgresql`"
+        - "Check disk: `df -h /var/lib/postgresql`"
+        - "Check WAL directory size: `du -sh /var/lib/postgresql/*/pg_wal`"
+        - "Attempt restart: `systemctl restart postgresql`"
+      dashboards:
+        - name: "PostgreSQL Overview"
+          url: ""
+      commands:
+        - "systemctl status postgresql"
+        - "journalctl -u postgresql --since '10 minutes ago'"
+        - "df -h /var/lib/postgresql"
+
+    resolutions:
+      - description: "OOM kill due to work_mem set too high. Reducing work_mem resolved it."
+        incident_url: ""
+
+    dependencies:
+      - "Application services"
+      - "postgres_exporter"
+
+    escalation:
+      guidance: "Escalate immediately if primary is down."
+      slack_channels:
+        - name: "#database-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "Add `for: 1m` to tolerate restarts without paging."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "PostgreSQL too many connections"
+          url: "../postgresql-too-many-connections/"
+      docs:
+        - name: "postgres_exporter"
+          url: "https://github.com/prometheus-community/postgres_exporter"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "PostgreSQL too many connections"
+    slug: "postgresql-too-many-connections"
+    severity: warning
+
+    overview:
+      what: "Active connections exceed 80% of max_connections."
+      contributing_factors:
+        - "PgBouncer not in use or misconfigured"
+        - "Connection leak in application"
+        - "Idle-in-transaction connections accumulating"
+      affected_components:
+        - "Application services opening new connections"
+      expected_action: "Identify and terminate idle or idle-in-transaction connections. Consider deploying PgBouncer."
+
+    services:
+      - name: "PostgreSQL"
+        overview_url: "https://www.postgresql.org/docs/"
+        team: ""
+
+    metrics:
+      name: "sum(pg_stat_activity_count) / pg_settings_max_connections"
+      description: "Ratio of active connections to the configured maximum."
+      unit: "ratio (0–1), alert threshold at 0.8"
+      threshold_rationale: "At 80% there is still headroom to act before new connections are refused."
+      normal_behavior: "Below 50% in healthy operation."
+      screenshots:
+        - file: "postgresql-connections-firing.png"
+          caption: "Dashboard when connection ratio exceeds 80%"
+        - file: "postgresql-connections-recovery.png"
+          caption: "Dashboard after connections drop"
+
+    alert_behavior:
+      silencing: "Silence during load tests."
+      frequency: "Occasional."
+
+    severities:
+      guidance: "Warning. Escalate if connections reach 95%+ or application errors appear."
+      impacted_users: "Users of services opening new connections."
+      things_to_check:
+        - "Are idle-in-transaction sessions accumulating?"
+        - "Is PgBouncer deployed and healthy?"
+
+    verification:
+      prometheus_query: "sum(pg_stat_activity_count) / pg_settings_max_connections > 0.8"
+      dashboards:
+        - name: "PostgreSQL Connections"
+          url: ""
+      log_queries:
+        - name: "Application connection errors"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Count connections: `SELECT count(*) FROM pg_stat_activity;`"
+        - "Find idle-in-transaction: `SELECT pid, now() - state_change AS duration, query FROM pg_stat_activity WHERE state = 'idle in transaction' ORDER BY duration DESC;`"
+        - "Terminate long idle sessions: `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state = 'idle in transaction' AND now() - state_change > interval '10 minutes';`"
+        - "Check max_connections: `SHOW max_connections;`"
+      dashboards:
+        - name: "PostgreSQL Connections"
+          url: ""
+      commands:
+        - "SELECT count(*) FROM pg_stat_activity;"
+        - "SHOW max_connections;"
+
+    resolutions:
+      - description: "Deployed PgBouncer in transaction pooling mode — sustained connection count dropped by 80%."
+        incident_url: ""
+
+    dependencies:
+      - "PgBouncer (if applicable)"
+      - "Application connection pools"
+
+    escalation:
+      guidance: "Escalate if connections exceed 95% or new connection errors appear in application logs."
+      slack_channels:
+        - name: "#database-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "The 80% threshold is self-normalizing against max_connections."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "PostgreSQL down"
+          url: "../postgresql-down/"
+      docs:
+        - name: "PgBouncer"
+          url: "https://www.pgbouncer.org/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
