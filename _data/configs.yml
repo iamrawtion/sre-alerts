@@ -281,3 +281,72 @@ platforms:
           #   -remoteWrite.url=http://victoria-metrics:8428/api/v1/write \
           #   -remoteWrite.tmpDataPath=/var/lib/vmagent/tmp \
           #   -httpListenAddr=:8429
+
+  - name: "Nagios"
+    slug: "nagios"
+    description: "Plugin command definitions for Nagios and compatible systems (Icinga, Naemon)."
+    configs:
+      - slug: "check-cpu"
+        title: "check_cpu"
+        description: "Alert when CPU utilization exceeds warning or critical thresholds."
+        content: |
+          # Requires the check_cpu plugin — install via your package manager or
+          # download from https://exchange.nagios.org/
+
+          # Define the command in commands.cfg:
+          define command {
+              command_name  check_cpu
+              command_line  $USER1$/check_cpu -w $ARG1$ -c $ARG2$
+          }
+
+          # Use in a service definition:
+          define service {
+              use                   generic-service
+              host_name             web-01
+              service_description   CPU Utilization
+              check_command         check_cpu!80!95
+              # Warn at 80% CPU usage, critical at 95%
+          }
+
+      - slug: "check-memory"
+        title: "check_memory"
+        description: "Alert when memory usage exceeds warning or critical thresholds."
+        content: |
+          # Requires check_mem.pl — bundled in nagios-plugins-contrib on Debian/Ubuntu,
+          # or download from https://exchange.nagios.org/
+
+          # Define the command in commands.cfg:
+          define command {
+              command_name  check_memory
+              command_line  $USER1$/check_mem.pl -w $ARG1$ -c $ARG2$
+          }
+
+          # Use in a service definition:
+          define service {
+              use                   generic-service
+              host_name             web-01
+              service_description   Memory Usage
+              check_command         check_memory!80!95
+              # Warn at 80% memory used, critical at 95%
+          }
+
+      - slug: "check-disk"
+        title: "check_disk"
+        description: "Alert when free space on a mount point drops below warning or critical thresholds."
+        content: |
+          # check_disk is bundled with the standard nagios-plugins package.
+
+          # Define the command in commands.cfg:
+          define command {
+              command_name  check_disk
+              command_line  $USER1$/check_disk -w $ARG1$ -c $ARG2$ -p $ARG3$
+          }
+
+          # Use in a service definition:
+          define service {
+              use                   generic-service
+              host_name             web-01
+              service_description   Disk Usage /
+              check_command         check_disk!20%!10%!/
+              # Warn when less than 20% free, critical when less than 10% free
+          }
