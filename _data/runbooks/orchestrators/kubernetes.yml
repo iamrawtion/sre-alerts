@@ -113,12 +113,16 @@ alerts:
     overview:
       what: "A pod's restart count is high. The container is repeatedly crashing and being restarted by kubelet."
       contributing_factors:
-        - "Application crash — unhandled exception, OOM kill"
+        - "Application crash — unhandled exception, OOM kill, or bad CMD/entrypoint"
         - "Misconfigured liveness probe killing a healthy-but-slow-starting container"
         - "Missing ConfigMap, Secret, or volume mount"
+        - "Failing init containers preventing the main container from starting"
+        - "App starts before a dependency (DB, cache) is ready — no retry/backoff logic"
+        - "File permission issues on mounted volumes"
+        - "SIGTERM not handled — container exits non-zero on graceful shutdown"
       affected_components:
         - "The specific pod and the service endpoints it provides"
-      expected_action: "Check the pod's previous container logs to identify the crash reason, then fix the root cause."
+      expected_action: "Check the pod's previous container logs and exit code to identify the crash reason, then fix the root cause. Do not restart or delete the pod before gathering evidence."
 
     services:
       - name: "Kubernetes"
@@ -146,8 +150,13 @@ alerts:
       impacted_users: "Users of the service the pod belongs to."
       things_to_check:
         - "Is the pod part of a Deployment with multiple replicas?"
-        - "Was there a recent deploy?"
+        - "Was there a recent deploy or config change?"
         - "Is the crash an OOM kill or an application exception?"
+        - "Are resource limits (CPU/memory) too tight for the workload?"
+        - "Are readiness or liveness probes configured correctly?"
+        - "Are all required ConfigMaps and Secrets present and mounted?"
+        - "Are downstream dependencies (databases, external APIs) reachable from the pod?"
+        - "Is the node the pod is scheduled on healthy?"
 
     verification:
       prometheus_query: "increase(kube_pod_container_status_restarts_total[15m]) > 3"
@@ -161,12 +170,16 @@ alerts:
     troubleshooting:
       steps:
         - "Find crash-looping pods: `kubectl get pods -A | grep -v Running | grep -v Completed`"
-        - "Describe the pod for events: `kubectl describe pod <pod-name> -n <namespace>`"
-        - "Check current container logs: `kubectl logs <pod-name> -n <namespace>`"
-        - "Check previous container logs: `kubectl logs <pod-name> -n <namespace> --previous`"
-        - "If OOM: check memory limits in the pod spec and increase if appropriate"
-        - "If liveness probe: check `initialDelaySeconds` — increase if the app starts slowly"
-        - "If missing config: check Events section of `kubectl describe` for mount failures"
+        - "Describe the pod for events and failure reasons: `kubectl describe pod <pod-name> -n <namespace>`"
+        - "Check previous container logs (what happened right before the crash): `kubectl logs <pod-name> -n <namespace> --previous`"
+        - "Get the exit code of the last terminated container: `kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.status.containerStatuses[0].lastState.terminated.exitCode}'`"
+        - "Check cluster-wide events for context: `kubectl get events -n <namespace> --sort-by='.lastTimestamp'`"
+        - "Check node health — a failing node can cause pods to crash: `kubectl get nodes`"
+        - "If OOM (exit code 137): check memory limits in the pod spec and increase if appropriate"
+        - "If liveness probe is killing the container: check `initialDelaySeconds` and `failureThreshold` — increase if the app starts slowly"
+        - "If missing config: look for `MountVolume` or `secret not found` errors in `kubectl describe` Events"
+        - "If the crash is hard to reproduce, run the container interactively to inspect it: `kubectl run debug --image=<image> -it --restart=Never -- bash`"
+        - "To stop the restart loop while debugging, set `restartPolicy: Never` on a test pod so Kubernetes doesn't mask the failure with retries"
       dashboards:
         - name: "Kubernetes Pods"
           url: ""
@@ -174,9 +187,17 @@ alerts:
         - "kubectl get pods -A | grep -v Running | grep -v Completed"
         - "kubectl describe pod <pod-name> -n <namespace>"
         - "kubectl logs <pod-name> -n <namespace> --previous"
+        - "kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.status.containerStatuses[0].lastState.terminated.exitCode}'"
+        - "kubectl get events -n <namespace> --sort-by='.lastTimestamp'"
+        - "kubectl get nodes"
+        - "kubectl run debug --image=<image> -it --restart=Never -- bash"
 
     resolutions:
       - description: "liveness probe initialDelaySeconds was too low for a slow-starting JVM app. Increasing it stopped the crash loop."
+        incident_url: ""
+      - description: "Bad CMD in the Docker image — entrypoint script exited with code 1 immediately. Identified via kubectl logs --previous and fixed in the Dockerfile."
+        incident_url: ""
+      - description: "App crashed on startup because the database was not yet ready. Adding an init container with a readiness check resolved the ordering issue."
         incident_url: ""
 
     dependencies:
