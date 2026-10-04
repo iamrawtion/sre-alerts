@@ -224,3 +224,135 @@ alerts:
           url: "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/"
 
     credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "Kubernetes StatefulSet down"
+    slug: "kubernetes-statefulset-down"
+    severity: critical
+
+    overview:
+      what: "A StatefulSet has fewer ready replicas than desired. One or more pods are not running or passing readiness checks."
+      contributing_factors:
+        - "PVC stuck in Pending — storage class misconfiguration or provisioner failure"
+        - "Orphaned PV from a previous release — reclaim policy left the volume in Released state"
+        - "Pod stuck in Terminating — volume detach stalled after a node failure or upgrade"
+        - "Volume mount conflict — overlapping mount paths or subPath directory missing"
+        - "File permission issue — container cannot write to the mounted volume"
+        - "Headless service selector mismatch — pods start but are unreachable by ordinal DNS name"
+        - "Node cordoned or tainted after a cluster upgrade — pods cannot reschedule"
+        - "Ordered rollout blocked — pod-N cannot start until pod-(N-1) is Ready"
+      affected_components:
+        - "The StatefulSet and any service that routes to its pods"
+        - "Dependent services relying on stable pod DNS names (e.g. <pod>.<headless-svc>.<ns>.svc.cluster.local)"
+      expected_action: "Check StatefulSet replica status and the lowest-ordinal failing pod first — ordered startup means one stuck pod blocks all higher-ordinal pods."
+
+    services:
+      - name: "Kubernetes"
+        overview_url: "https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/"
+        team: ""
+
+    metrics:
+      name: "kube_statefulset_status_replicas_ready / kube_statefulset_status_replicas"
+      description: "Ratio of ready replicas to desired replicas for the StatefulSet. Exported by kube-state-metrics."
+      unit: "ratio (0–1)"
+      threshold_rationale: "Any value below 1.0 means at least one replica is not serving traffic. For quorum-based systems (etcd, ZooKeeper, Kafka), losing a majority of replicas is a P1 outage."
+      normal_behavior: "readyReplicas == replicas at all times outside of a rolling update."
+      screenshots:
+        - file: "k8s-statefulset-down-firing.png"
+          caption: "Dashboard when StatefulSet ready replica count drops"
+        - file: "k8s-statefulset-down-recovery.png"
+          caption: "Dashboard after StatefulSet returns to full replica count"
+
+    alert_behavior:
+      silencing: "Silence during planned rolling upgrades. Use a time-bounded Alertmanager silence scoped to the StatefulSet name."
+      frequency: "Uncommon in steady state — typically follows a cluster upgrade, storage change, or bad deploy."
+
+    severities:
+      guidance: "Critical if replicas drop below quorum for consensus systems (etcd, Kafka, ZooKeeper, Cassandra). Warning if at least one replica is healthy and the service can still serve traffic."
+      impacted_users: "Users of any service backed by this StatefulSet."
+      things_to_check:
+        - "Which ordinal pod is failing first? (pod-0 blocks pod-1, pod-1 blocks pod-2)"
+        - "Are the PVCs Bound or stuck Pending?"
+        - "Did a cluster upgrade change the storage class or node availability zone?"
+        - "Is the headless service selector still matching the pod labels?"
+        - "Are any nodes cordoned that the StatefulSet pods were scheduled on?"
+
+    verification:
+      prometheus_query: "kube_statefulset_status_replicas_ready / kube_statefulset_status_replicas < 1"
+      dashboards:
+        - name: "Kubernetes StatefulSets"
+          url: ""
+      log_queries:
+        - name: "Pod logs for failing ordinal"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Check StatefulSet replica status — note READY vs desired: `kubectl get statefulsets -n <namespace>`"
+        - "Get detailed events and rollout strategy: `kubectl describe statefulset <name> -n <namespace>`"
+        - "Check if the rollout is stuck mid-update: `kubectl rollout status statefulset <name> -n <namespace>`"
+        - "Identify which pod is failing — start from the lowest ordinal: `kubectl get pods -n <namespace> -o wide`"
+        - "Describe the failing pod for mount errors, scheduling failures, or probe failures: `kubectl describe pod <name>-0 -n <namespace>`"
+        - "Check PVC status — Pending means storage has not been provisioned: `kubectl get pvc -n <namespace>`"
+        - "If a PVC is Pending, describe it to see the provisioner error: `kubectl describe pvc <pvc-name> -n <namespace>`"
+        - "Check for orphaned PVs stuck in Released state: `kubectl get pv | grep Released`"
+        - "Verify the storage class exists and the provisioner is healthy: `kubectl get storageclass && kubectl get pods -n kube-system | grep provisioner`"
+        - "Confirm the headless service exists and its selector matches pod labels: `kubectl get svc -n <namespace> && kubectl get endpoints -n <namespace>`"
+        - "Check recent events sorted by time: `kubectl get events -n <namespace> --sort-by=.metadata.creationTimestamp`"
+        - "If a pod is stuck Terminating after a node failure, force-delete it — the StatefulSet controller will recreate it: `kubectl delete pod <name>-0 --force --grace-period=0 -n <namespace>`"
+        - "To roll back to a previous revision: `kubectl rollout history statefulset <name> -n <namespace>` then `kubectl rollout undo statefulset <name> -n <namespace>`"
+      dashboards:
+        - name: "Kubernetes StatefulSets"
+          url: ""
+      commands:
+        - "kubectl get statefulsets -n <namespace>"
+        - "kubectl describe statefulset <name> -n <namespace>"
+        - "kubectl rollout status statefulset <name> -n <namespace>"
+        - "kubectl rollout history statefulset <name> -n <namespace>"
+        - "kubectl get pods -n <namespace> -o wide"
+        - "kubectl get pvc -n <namespace>"
+        - "kubectl describe pvc <pvc-name> -n <namespace>"
+        - "kubectl get pv | grep Released"
+        - "kubectl get endpoints -n <namespace>"
+        - "kubectl get events -n <namespace> --sort-by=.metadata.creationTimestamp"
+        - "kubectl delete pod <name>-0 --force --grace-period=0 -n <namespace>"
+        - "kubectl rollout undo statefulset <name> -n <namespace>"
+
+    resolutions:
+      - description: "PVC stuck Pending after a cluster upgrade changed the default storage class. Updating the PVC to reference the correct storage class unblocked provisioning."
+        incident_url: ""
+      - description: "Orphaned PV left in Released state after a namespace migration. Patching the PV to clear its claimRef allowed the new PVC to bind."
+        incident_url: ""
+      - description: "Pod stuck Terminating after a node was force-terminated during an upgrade. Force-deleting the pod allowed the StatefulSet controller to recreate it on a healthy node."
+        incident_url: ""
+      - description: "Headless service selector was missing a label added in a recent deploy. Updating the selector restored ordinal DNS resolution and unblocked the rollout."
+        incident_url: ""
+
+    dependencies:
+      - "PersistentVolumeClaims and the storage class provisioner"
+      - "Headless service (required for stable pod DNS names)"
+      - "Nodes in the correct availability zone (for zone-pinned volumes)"
+
+    escalation:
+      guidance: "Escalate immediately if the StatefulSet is a quorum-based system (etcd, Kafka, ZooKeeper) and ready replicas drop below majority. Data loss is possible if the remaining pods are restarted before the failed one recovers."
+      slack_channels:
+        - name: "#platform-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "For single-replica StatefulSets, any pod failure fires immediately (0/1 = 0). For multi-replica sets, consider alerting on < 1 (any degradation) vs. < 0.5 (quorum loss) depending on tolerance."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Kubernetes pod crash looping"
+          url: "../kubernetes-pod-crash-looping/"
+        - name: "Kubernetes node not ready"
+          url: "../kubernetes-node-not-ready/"
+      docs:
+        - name: "Kubernetes StatefulSet concepts"
+          url: "https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/"
+        - name: "Kubernetes StatefulSet troubleshooting"
+          url: "https://kubernetes.io/docs/tasks/debug/debug-application/debug-statefulset/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
