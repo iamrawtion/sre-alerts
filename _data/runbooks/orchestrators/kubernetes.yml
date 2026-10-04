@@ -473,3 +473,87 @@ alerts:
           url: "https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/"
 
     credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "Kubernetes CronJob too long"
+    slug: "kubernetes-cronjob-too-long"
+    severity: warning
+
+    overview:
+      what: "A CronJob has been running longer than expected, or has stopped being scheduled entirely."
+      contributing_factors:
+        - "No `activeDeadlineSeconds` set — a hung job runs indefinitely"
+        - "`concurrencyPolicy: Allow` — previous runs pile up and block resources"
+        - "Job stuck on network I/O, external dependency, or a deadlock"
+        - "More than 100 missed start times — the controller stops scheduling silently"
+        - "`startingDeadlineSeconds` set too low — start window closes before the job can launch"
+        - "CronJob is suspended (`spec.suspend: true`)"
+        - "UTC timezone confusion — schedule fires at unexpected local times if `spec.timeZone` is not set"
+      affected_components:
+        - "Batch jobs and scheduled tasks"
+        - "Downstream systems depending on CronJob output (reports, syncs, backups)"
+      expected_action: "Identify whether the job is hung or not scheduling. Set `activeDeadlineSeconds` to cap run time, set `concurrencyPolicy: Forbid` to prevent overlap, and recreate the CronJob if more than 100 schedules were missed."
+
+    services:
+      - name: "Kubernetes"
+        overview_url: "https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/"
+        team: ""
+
+    metrics:
+      name: "kube_cronjob_status_active"
+      description: "Number of currently active jobs for a CronJob. A long-running value indicates a stuck job."
+
+    troubleshooting:
+      steps:
+        - "Check CronJob status and last schedule time: `kubectl get cronjob <name> -n <namespace>`"
+        - "Inspect events and schedule history: `kubectl describe cronjob <name> -n <namespace>` — look at LAST SCHEDULE and any warning events about missed start times"
+        - "Check if the CronJob is suspended: `kubectl get cronjob <name> -n <namespace> -o jsonpath='{.spec.suspend}'`"
+        - "List all jobs created by the CronJob: `kubectl get jobs -n <namespace> -l job-name=<name>`"
+        - "Check active job status and pod state: `kubectl get pods -n <namespace> -l job-name=<name>`"
+        - "Check logs of the running or failed job: `kubectl logs job/<job-name> -n <namespace>`"
+        - "If the job has no logs (too old or already cleaned up), increase `failedJobsHistoryLimit` on the CronJob to retain more history"
+        - "If events show 'too many missed start times', the controller has stopped scheduling. Delete and recreate the CronJob to reset the counter."
+        - "Verify the schedule expression and timezone: `kubectl get cronjob <name> -n <namespace> -o jsonpath='{.spec.schedule} {.spec.timeZone}'`"
+      dashboards:
+        - name: "Kubernetes CronJobs"
+          url: ""
+      commands:
+        - "kubectl get cronjob <name> -n <namespace>"
+        - "kubectl describe cronjob <name> -n <namespace>"
+        - "kubectl get jobs -n <namespace> -l job-name=<name>"
+        - "kubectl get pods -n <namespace> -l job-name=<name>"
+        - "kubectl logs job/<job-name> -n <namespace>"
+        - "kubectl get events -n <namespace> --field-selector involvedObject.name=<name>"
+        - "kubectl create job --from=cronjob/<name> <manual-job-name> -n <namespace>"
+
+    resolutions:
+      - description: "CronJob had no `activeDeadlineSeconds`. A job hung on a network call ran for hours, blocking the next scheduled run (concurrencyPolicy: Allow). Setting `activeDeadlineSeconds: 3600` and `concurrencyPolicy: Forbid` resolved it."
+        incident_url: ""
+      - description: "More than 100 schedules were missed due to a cluster outage. The controller silently stopped scheduling. Deleting and recreating the CronJob reset the missed-schedule counter and schedules resumed."
+        incident_url: ""
+
+    dependencies:
+      - "kube-state-metrics (for CronJob and Job metrics)"
+      - "External dependencies the job calls (APIs, databases, storage)"
+
+    escalation:
+      guidance: "Escalate if the stuck CronJob performs critical operations (backups, billing, data sync) and manual job creation has not helped, or if the job is consuming significant cluster resources."
+      slack_channels:
+        - name: "#platform-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "Set `activeDeadlineSeconds` on every CronJob to enforce a maximum run time. Use `concurrencyPolicy: Forbid` for jobs that must not overlap. Set `successfulJobsHistoryLimit: 3` and `failedJobsHistoryLimit: 5` to retain enough history without unbounded growth."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Kubernetes pod crash looping"
+          url: "../kubernetes-pod-crash-looping/"
+      docs:
+        - name: "Kubernetes CronJobs"
+          url: "https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/"
+        - name: "Kubernetes Jobs"
+          url: "https://kubernetes.io/docs/concepts/workloads/controllers/job/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
