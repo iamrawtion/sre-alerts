@@ -356,3 +356,120 @@ alerts:
           url: "https://kubernetes.io/docs/tasks/debug/debug-application/debug-statefulset/"
 
     credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "Kubernetes container OOM killed"
+    slug: "kubernetes-container-oom-killed"
+    severity: critical
+
+    overview:
+      what: "A container was terminated by the Linux kernel's OOM killer because it exceeded its cgroup memory limit. Exit code 137 (SIGKILL) is recorded with Reason: OOMKilled."
+      contributing_factors:
+        - "Memory limit set below actual peak usage — sized from averages or staging, not production peaks"
+        - "Memory leak — usage grows steadily across container lifetimes until it hits the limit"
+        - "Traffic or workload spike — large payloads, fan-out queries, or batch jobs push usage past the steady-state baseline"
+        - "JVM/runtime heap misconfigured — heap ceiling set above the container limit, so the cgroup kills before the runtime throws OutOfMemoryError"
+        - "Node memory pressure — kubelet evicts pods when the node runs low, before individual containers hit their own limits"
+      affected_components:
+        - "The OOMKilled container and the pod it belongs to"
+        - "In-flight requests and open connections (SIGKILL gives no time to flush or close)"
+        - "Downstream services that lose the connection without a graceful shutdown"
+      expected_action: "Confirm OOMKilled is the cause (not a probe failure or eviction), identify whether the root cause is a bad limit, a leak, or a spike, then apply the matching fix."
+
+    services:
+      - name: "Kubernetes"
+        overview_url: "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
+        team: ""
+
+    metrics:
+      name: "kube_pod_container_status_last_terminated_reason"
+      description: "Gauge exported by kube-state-metrics. Value is 1 when the last termination reason matches the label value (e.g. OOMKilled)."
+      unit: "boolean (0 or 1)"
+      threshold_rationale: "Any OOMKilled termination is actionable — either the limit is wrong or the application has a leak."
+      normal_behavior: "Containers should never be OOMKilled. A single occurrence warrants investigation; repeated occurrences indicate a persistent misconfiguration or leak."
+      screenshots:
+        - file: "k8s-oomkilled-firing.png"
+          caption: "Dashboard when OOMKilled termination is detected"
+        - file: "k8s-oomkilled-memory-trend.png"
+          caption: "Memory usage trend showing climb to limit before kill"
+
+    alert_behavior:
+      silencing: "Do not silence. OOMKilled events are always worth investigating. If a planned batch job is expected to use high memory, increase its limit before running, not after."
+      frequency: "Should be rare. Repeated OOMKills on the same workload indicate the root cause has not been fixed."
+
+    severities:
+      guidance: "Critical. SIGKILL is abrupt — in-flight work is lost and connections drop without warning. Stateful workloads risk data corruption."
+      impacted_users: "Users of the service the pod belongs to, for the duration of the restart."
+      things_to_check:
+        - "Is the exit code 137 with Reason: OOMKilled, or is it a probe failure or eviction? (Check kubectl describe pod)"
+        - "Is this a single container repeatedly hitting its limit, or multiple pods dying together? (Multiple = node pressure)"
+        - "Does memory usage grow steadily over time (leak), spike at specific events (bad limit or spike), or is this the first occurrence?"
+        - "What is the container's memory limit vs. its actual peak usage?"
+        - "Is the node showing MemoryPressure?"
+
+    verification:
+      prometheus_query: "kube_pod_container_status_last_terminated_reason{reason='OOMKilled'} == 1"
+      dashboards:
+        - name: "Kubernetes Pods"
+          url: ""
+      log_queries:
+        - name: "Pod logs (previous container)"
+          url: ""
+
+    troubleshooting:
+      steps:
+        - "Confirm OOMKilled is the cause — look for Reason: OOMKilled and Exit Code: 137 in Last State: `kubectl describe pod <pod-name> -n <namespace>`"
+        - "Check if this is node pressure (multiple pods affected) vs. a single container hitting its own limit: `kubectl describe node <node-name> | grep -A5 MemoryPressure`"
+        - "Check current memory usage vs. limits: `kubectl top pod <pod-name> -n <namespace>`"
+        - "Check the configured limit: `kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.spec.containers[0].resources.limits.memory}'`"
+        - "Read previous container logs for allocation failures, GC thrash, or heap errors before the kill: `kubectl logs <pod-name> -n <namespace> --previous`"
+        - "Chart memory over time in Prometheus to distinguish a leak (steady climb across restarts) from a bad limit (flat baseline, spike at events): `container_memory_working_set_bytes{pod='<pod-name>'} / container_spec_memory_limit_bytes{pod='<pod-name>'}`"
+        - "If a memory leak is suspected, exec into the container and check process memory: `kubectl exec -it <pod-name> -n <namespace> -- cat /proc/1/status | grep -i VmRSS`"
+        - "If the container uses a JVM, confirm heap is sized below the container limit (e.g. `-Xmx` at ~75% of the limit) to leave room for off-heap memory"
+        - "As a quick fix while investigating, patch the memory limit: `kubectl patch deployment <name> -n <namespace> -p '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"<container>\",\"resources\":{\"limits\":{\"memory\":\"1Gi\"}}}]}}}}'`"
+      dashboards:
+        - name: "Kubernetes Pods"
+          url: ""
+      commands:
+        - "kubectl describe pod <pod-name> -n <namespace>"
+        - "kubectl top pod <pod-name> -n <namespace>"
+        - "kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.spec.containers[0].resources.limits.memory}'"
+        - "kubectl logs <pod-name> -n <namespace> --previous"
+        - "kubectl describe node <node-name> | grep -A5 MemoryPressure"
+        - "kubectl get events -n <namespace> --field-selector reason=OOMKilling --sort-by=.lastTimestamp"
+
+    resolutions:
+      - description: "Memory limit was sized from staging load. Production peak usage exceeded it during a traffic spike. Increasing the limit to p99 of production peak resolved it."
+        incident_url: ""
+      - description: "JVM heap set to -Xmx equal to the container limit, leaving no room for off-heap (metaspace, thread stacks, native buffers). Container was OOMKilled while heap was still under limit. Setting -Xmx to 75% of the container limit resolved it."
+        incident_url: ""
+      - description: "Memory leak introduced in a new version — usage climbed steadily after each restart. Identified via Prometheus memory trend across multiple container lifetimes. Fixed in application code."
+        incident_url: ""
+
+    dependencies:
+      - "Node allocatable memory (node pressure can OOMKill pods under their own limit)"
+      - "Metrics Server or Prometheus (for kubectl top and memory trend analysis)"
+
+    escalation:
+      guidance: "Escalate if the OOMKilled pod is a singleton, a stateful workload with risk of data corruption, or if node MemoryPressure is causing multiple pods to die together."
+      slack_channels:
+        - name: "#platform-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "Set memory limits at p99 of production peak usage, not average. Keep requests-to-limits ratio below 4x to avoid implicit node overcommitment. For Guaranteed QoS (last evicted under node pressure), set requests equal to limits."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Kubernetes pod crash looping"
+          url: "../kubernetes-pod-crash-looping/"
+        - name: "Kubernetes node not ready"
+          url: "../kubernetes-node-not-ready/"
+      docs:
+        - name: "Kubernetes resource management"
+          url: "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
+        - name: "Kubernetes QoS classes"
+          url: "https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
