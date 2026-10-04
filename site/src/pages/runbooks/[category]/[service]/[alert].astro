@@ -28,7 +28,7 @@ const severityColors: Record<string, string> = {
 };
 
 function renderInlineCode(text: string): string {
-  return text.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-xs text-slate-800 dark:text-slate-200">$1</code>');
+  return text.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-slate-800 font-mono text-xs text-slate-100">$1</code>');
 }
 
 function placeholder(label: string): string {
