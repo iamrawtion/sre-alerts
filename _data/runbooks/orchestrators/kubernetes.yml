@@ -557,3 +557,90 @@ alerts:
           url: "https://kubernetes.io/docs/concepts/workloads/controllers/job/"
 
     credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
+
+  - name: "Kubernetes node memory pressure"
+    slug: "kubernetes-node-memory-pressure"
+    severity: warning
+
+    overview:
+      what: "A node's available memory has fallen below the kubelet eviction threshold. The node is set to MemoryPressure=True, new pods are blocked from scheduling via the node.kubernetes.io/memory-pressure:NoSchedule taint, and running pods are being evicted to reclaim memory."
+      contributing_factors:
+        - "Workloads have no memory requests — BestEffort pods are scheduled without capacity reservation and are first to be evicted"
+        - "Memory requests are set too low relative to actual usage — scheduler overcommits the node"
+        - "Memory leak in an application — pod restart count climbs with OOMKilled reason"
+        - "Active page cache inflating kubelet working-set calculation — kubelet counts active file-backed pages, which can diverge from `free -m` output"
+        - "Eviction threshold set too tight for the node size — normal load trips the threshold"
+        - "Thundering herd or bursty workloads — sudden spike in memory consumption"
+      affected_components:
+        - "All pods on the pressure node — BestEffort evicted first, then over-request Burstable, then Guaranteed/within-request Burstable last"
+        - "Pods pending scheduling on the affected node (blocked by NoSchedule taint)"
+        - "Downstream services depending on evicted pods"
+      expected_action: "Confirm the node condition and taint, distinguish kubelet eviction from kernel OOMKill, identify the highest memory consumers, and either right-size requests/limits or cordon the node and redistribute workloads."
+
+    services:
+      - name: "Kubernetes"
+        overview_url: "https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/"
+        team: ""
+
+    metrics:
+      name: "kube_node_status_condition{condition='MemoryPressure',status='true'}"
+      description: "Gauge that is 1 when the node's MemoryPressure condition is True."
+
+    troubleshooting:
+      steps:
+        - "Confirm MemoryPressure condition and taint: `kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{\"\\t\"}{.status.conditions[?(@.type==\"MemoryPressure\")].status}{\"\\n\"}{end}'`"
+        - "Distinguish kubelet eviction from kernel OOMKill: inspect `lastState.terminated.reason` — `OOMKilled` means the container hit its cgroup memory limit; `Evicted` means kubelet removed the pod due to node pressure. OOMKilled points to a limit or leak; Evicted points to node overcommit."
+        - "Find evicted pods: `kubectl get pods --all-namespaces --field-selector status.phase=Failed | grep Evicted`"
+        - "Check current memory consumers: `kubectl top pods -n <namespace> --sort-by=memory`"
+        - "Compare allocated vs. actual memory on the node: `kubectl describe node <node-name> | grep -A10 'Allocated resources'`"
+        - "Check actual node memory: `kubectl get --raw /api/v1/nodes/<node-name>/proxy/metrics | grep kubelet_evictions`"
+        - "Inspect kubelet eviction configuration: `grep -A5 'evictionHard' /var/lib/kubelet/config.yaml`"
+        - "Check pod QoS classes to predict eviction risk: `kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.status.qosClass}'`"
+        - "If a memory leak is suspected, check restart count and last termination: `kubectl describe pod <pod-name> -n <namespace> | grep -A5 'Last State'`"
+      dashboards:
+        - name: "Kubernetes Nodes"
+          url: ""
+      commands:
+        - "kubectl get nodes -o wide"
+        - "kubectl describe node <node-name>"
+        - "kubectl top nodes"
+        - "kubectl top pods --all-namespaces --sort-by=memory"
+        - "kubectl get pods --all-namespaces --field-selector status.phase=Failed"
+        - "kubectl get events --all-namespaces --field-selector reason=Evicted --sort-by=.lastTimestamp"
+        - "kubectl cordon <node-name>"
+        - "kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data"
+
+    resolutions:
+      - description: "Pods had no memory requests (BestEffort QoS). Scheduler overcommitted the node during a traffic spike. Adding memory requests matching steady-state usage restored predictable scheduling and stopped evictions."
+        incident_url: ""
+      - description: "Application had a memory leak — container restart count climbed steadily with OOMKilled reason. Fixed by patching the application and setting the memory limit to actual steady-state peak usage."
+        incident_url: ""
+
+    dependencies:
+      - "Metrics Server or Prometheus + node-exporter (for kubectl top and memory trend analysis)"
+      - "kube-state-metrics (for node condition and pod QoS metrics)"
+
+    escalation:
+      guidance: "Escalate if Guaranteed QoS pods are being evicted (indicates severe node oversubscription), if MemoryPressure persists after eviction, or if multiple nodes enter pressure simultaneously."
+      slack_channels:
+        - name: "#platform-oncall"
+          url: ""
+
+    definitions:
+      alert_url: ""
+      tuning_notes: "Set memory requests to steady-state usage and limits with headroom for spikes. Use LimitRange to enforce defaults and prevent BestEffort pods. Configure --kube-reserved and --system-reserved so the scheduler accounts for node overhead. Tune --eviction-minimum-reclaim to avoid rapid condition flapping."
+      playbook_url: ""
+
+    related:
+      alerts:
+        - name: "Kubernetes container OOM killed"
+          url: "../kubernetes-container-oom-killed/"
+        - name: "Kubernetes node not ready"
+          url: "../kubernetes-node-not-ready/"
+      docs:
+        - name: "Kubernetes node pressure eviction"
+          url: "https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/"
+        - name: "Kubernetes QoS classes"
+          url: "https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/"
+
+    credits: "Template adapted from https://runbooks.gitlab.com/template-alert-playbook/"
