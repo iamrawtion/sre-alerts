@@ -3,11 +3,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { tools } from '../../data/tools';
 import type { Tool } from '../../data/tools';
+import { data as configsData } from '../../data/configs';
 import { SITE_URL, schemaWebSite } from '../../data/site';
 
 export function getStaticPaths() {
   return tools
-    .filter((t) => t.status === 'planned')
+    .filter((t) => t.slug !== 'prometheus')
     .map((tool) => ({
       params: { tool: tool.slug },
       props: { tool },
@@ -21,28 +22,71 @@ interface Props {
 const { tool } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
+// Count configs for this tool
+const toolConfigs = tool.paths.configs
+  ? configsData.platforms.filter((p) => p.slug === tool.slug).flatMap((p) => p.configs)
+  : [];
+
+const isLive = tool.status === 'live';
+
+interface Section {
+  title: string;
+  href: string;
+  available: boolean;
+  icon: string;
+  description: string;
+  meta: string;
+}
+
+const sections: Section[] = [
+  tool.paths.rules && {
+    title: 'Alert Rules',
+    href: `${base}${tool.paths.rules}`,
+    available: false,
+    icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+    description: 'Alerting rules and monitor definitions.',
+    meta: 'Coming soon',
+  },
+  tool.paths.configs && {
+    title: 'Configs',
+    href: `${base}${tool.paths.configs}`,
+    available: toolConfigs.length > 0,
+    icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+    description: 'Platform configuration examples and plugin definitions.',
+    meta: toolConfigs.length > 0 ? `${toolConfigs.length} config${toolConfigs.length === 1 ? '' : 's'}` : 'Coming soon',
+  },
+  tool.paths.runbooks && {
+    title: 'Runbooks',
+    href: `${base}${tool.paths.runbooks}`,
+    available: false,
+    icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+    description: 'Per-service runbooks with step-by-step resolution.',
+    meta: 'Coming soon',
+  },
+].filter(Boolean) as Section[];
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebPage',
-  name: `${tool.name} Monitoring — Coming Soon | SRE Alerts`,
+  name: `${tool.name} Monitoring — Rules, Configs & Runbooks | SRE Alerts`,
   url: `${SITE_URL}${tool.slug}/`,
   isPartOf: schemaWebSite,
 };
 ---
 
 <BaseLayout
-  title={`${tool.name} Monitoring — Coming Soon | SRE Alerts & Runbooks`}
-  description={`${tool.name} alerting rules, configs, and runbooks are coming to SRE Alerts & Runbooks. Check back soon or contribute on GitHub.`}
+  title={`${tool.name} Monitoring${isLive ? '' : ' — Coming Soon'} | SRE Alerts & Runbooks`}
+  description={`${tool.name} alerting rules, configs, and runbooks for SRE and DevOps teams.`}
   jsonLd={jsonLd}
-  noIndex={true}
+  noIndex={!isLive}
 >
-  <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <Breadcrumbs items={[{ label: tool.name }]} base={base} />
 
     <!-- Header -->
-    <div class="mt-6 mb-6 flex items-center gap-3">
+    <div class="mt-6 mb-8 flex items-center gap-3">
       {tool.logo
-        ? <img src={tool.logo} alt={tool.name} class="w-10 h-10 flex-shrink-0 opacity-70" />
+        ? <img src={tool.logo} alt={tool.name} class="w-10 h-10 flex-shrink-0" />
         : <span class="text-3xl" aria-hidden="true">{tool.emoji}</span>
       }
       <div>
@@ -51,44 +95,79 @@ const jsonLd = {
       </div>
     </div>
 
-    <!-- Coming soon banner -->
-    <div class="mb-8 rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 flex items-start gap-3">
-      <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <p class="text-sm text-amber-800 dark:text-amber-200">
-        {tool.name} content is being written. Check back soon or{' '}
-        <a href="https://github.com/iamrawtion/sre-alerts" class="underline font-medium" target="_blank" rel="noopener noreferrer">
-          contribute on GitHub
-        </a>.
-      </p>
-    </div>
+    {!isLive && (
+      <div class="mb-8 rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 flex items-start gap-3">
+        <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-sm text-amber-800 dark:text-amber-200">
+          {tool.name} content is being written. Check back soon or{' '}
+          <a href="https://github.com/iamrawtion/sre-alerts" class="underline font-medium" target="_blank" rel="noopener noreferrer">
+            contribute on GitHub
+          </a>.
+        </p>
+      </div>
+    )}
 
-    <!-- What's planned -->
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-6">
-      <h2 class="text-base font-semibold text-slate-900 dark:text-white mb-4">What's planned</h2>
-      <ul class="space-y-3 text-sm text-slate-600 dark:text-slate-400">
-        <li class="flex items-start gap-2">
-          <svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-          </svg>
-          Alerting rules and monitor definitions
-        </li>
-        <li class="flex items-start gap-2">
-          <svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Platform configuration examples
-        </li>
-        <li class="flex items-start gap-2">
-          <svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          Per-service runbooks with step-by-step resolution
-        </li>
-      </ul>
-    </div>
+    {sections.length > 0 ? (
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {sections.map((section) => (
+          section.available
+            ? (
+              <a
+                href={section.href}
+                class="group block p-5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 hover:border-brand/40 dark:hover:border-brand-dark/40 hover:shadow-sm transition-all"
+              >
+                <div class="mb-3 text-brand dark:text-brand-dark">
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={section.icon} />
+                  </svg>
+                </div>
+                <h2 class="font-semibold mb-1 text-slate-800 dark:text-slate-100 group-hover:text-brand dark:group-hover:text-brand-dark transition-colors">{section.title}</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-3">{section.description}</p>
+                <p class="text-xs font-medium text-brand dark:text-brand-dark">{section.meta}</p>
+              </a>
+            )
+            : (
+              <div class="block p-5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 opacity-60">
+                <div class="mb-3 text-slate-400 dark:text-slate-500">
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={section.icon} />
+                  </svg>
+                </div>
+                <h2 class="font-semibold mb-1 text-slate-500 dark:text-slate-400">{section.title}</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-3">{section.description}</p>
+                <p class="text-xs font-medium text-amber-600 dark:text-amber-400">{section.meta}</p>
+              </div>
+            )
+        ))}
+      </div>
+    ) : (
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-6">
+        <h2 class="text-base font-semibold text-slate-900 dark:text-white mb-4">What's planned</h2>
+        <ul class="space-y-3 text-sm text-slate-600 dark:text-slate-400">
+          <li class="flex items-start gap-2">
+            <svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            Alerting rules and monitor definitions
+          </li>
+          <li class="flex items-start gap-2">
+            <svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Platform configuration examples
+          </li>
+          <li class="flex items-start gap-2">
+            <svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            Per-service runbooks with step-by-step resolution
+          </li>
+        </ul>
+      </div>
+    )}
 
     <div class="mt-6 text-center">
       <a href={`${base}/`} class="text-sm text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-dark transition-colors">

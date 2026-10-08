@@ -44,8 +44,8 @@ export const tools: Tool[] = [
     name: 'Nagios',
     logo: '',
     emoji: '🔴',
-    status: 'planned',
-    paths: { hub: '/nagios/', configs: '/configs/' },
+    status: 'live',
+    paths: { hub: '/nagios/', configs: '/nagios/configs/' },
   },
   {
     slug: 'zabbix',

@@ -1,0 +1,103 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import { tools } from '../../../data/tools';
+import type { Tool } from '../../../data/tools';
+import { data as configsData } from '../../../data/configs';
+import { SITE_URL, schemaWebSite } from '../../../data/site';
+
+export function getStaticPaths() {
+  return tools
+    .filter((t) => t.slug !== 'prometheus' && t.paths.configs)
+    .map((tool) => ({
+      params: { tool: tool.slug },
+      props: { tool },
+    }));
+}
+
+interface Props {
+  tool: Tool;
+}
+
+const { tool } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const platforms = configsData.platforms.filter((p) => p.slug === tool.slug);
+const totalConfigs = platforms.reduce((sum, p) => sum + p.configs.length, 0);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: `${tool.name} Configs`,
+  description: `Reference configuration files for ${tool.name}.`,
+  url: `${SITE_URL}${tool.slug}/configs/`,
+  isPartOf: schemaWebSite,
+};
+---
+
+<BaseLayout
+  title={`${tool.name} Configs | SRE Alerts & Runbooks`}
+  description={`${totalConfigs} reference configuration files for ${tool.name}.`}
+  jsonLd={jsonLd}
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Breadcrumbs
+      items={[
+        { label: tool.name, href: `${base}${tool.paths.hub}` },
+        { label: 'Configs' },
+      ]}
+      base={base}
+    />
+
+    <!-- Header -->
+    <div class="mt-6 mb-8 flex items-center gap-3">
+      {tool.logo
+        ? <img src={tool.logo} alt={tool.name} class="w-8 h-8 flex-shrink-0" />
+        : <span class="text-2xl" aria-hidden="true">{tool.emoji}</span>
+      }
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{tool.name} Configs</h1>
+        <p class="text-slate-500 dark:text-slate-400 text-sm">
+          Reference configuration files for deploying and tuning {tool.name}.
+        </p>
+      </div>
+    </div>
+
+    {platforms.length > 0 ? (
+      <div class="space-y-6">
+        {platforms.map((platform) => (
+          <section class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h2 class="text-base font-semibold text-slate-900 dark:text-white">{platform.name}</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{platform.description}</p>
+              </div>
+              <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-brand/10 dark:bg-brand-dark/10 text-brand dark:text-brand-dark flex-shrink-0">
+                {platform.configs.length} configs
+              </span>
+            </div>
+            <div class="px-6 py-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                {platform.configs.map((config) => (
+                  <a
+                    href={`${base}/configs/${platform.slug}/${config.slug}/`}
+                    class="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand/50 dark:hover:border-brand-dark/50 hover:text-brand dark:hover:text-brand-dark transition-colors group"
+                  >
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 text-slate-400 group-hover:text-brand dark:group-hover:text-brand-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span class="text-xs font-medium truncate">{config.title}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </section>
+        ))}
+      </div>
+    ) : (
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 px-6 py-12 text-center">
+        <p class="text-slate-500 dark:text-slate-400 text-sm">No configs yet. Add a <code class="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{tool.slug}</code> platform entry to <code class="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">_data/configs.yml</code>.</p>
+      </div>
+    )}
+  </div>
+</BaseLayout>
